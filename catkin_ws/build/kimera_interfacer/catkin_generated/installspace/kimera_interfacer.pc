@@ -1,0 +1,8 @@
+prefix=/home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/install
+
+Name: kimera_interfacer
+Description: Description of kimera_interfacer
+Version: 1.0.0
+Cflags: -I${prefix}/include
+Libs: -L${prefix}/lib 
+Requires: kimera_semantics kimera_semantics_ros message_generation message_runtime sensor_msgs

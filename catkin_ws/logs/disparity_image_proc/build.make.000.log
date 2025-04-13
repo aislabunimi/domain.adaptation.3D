@@ -1,0 +1,4 @@
+[35m[1mScanning dependencies of target disparity_image_proc[0m
+[ 50%] [32mBuilding CXX object CMakeFiles/disparity_image_proc.dir/src/nodelets/depth_image.cpp.o[0m
+[100%] [32m[1mLinking CXX shared library /home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/merged/lib/libdisparity_image_proc.so[0m
+[100%] Built target disparity_image_proc

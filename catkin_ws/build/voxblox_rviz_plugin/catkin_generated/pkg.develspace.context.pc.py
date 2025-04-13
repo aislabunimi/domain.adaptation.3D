@@ -1,0 +1,8 @@
+# generated from catkin/cmake/template/pkg.context.pc.in
+CATKIN_PACKAGE_PREFIX = ""
+PROJECT_PKG_CONFIG_INCLUDE_DIRS = "/home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/src/dipendenze_kimera/voxblox/voxblox_rviz_plugin/include".split(';') if "/home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/src/dipendenze_kimera/voxblox/voxblox_rviz_plugin/include" != "" else []
+PROJECT_CATKIN_DEPENDS = "rviz;voxblox;voxblox_msgs".replace(';', ' ')
+PKG_CONFIG_LIBRARIES_WITH_PREFIX = "-lvoxblox_rviz_plugin".split(';') if "-lvoxblox_rviz_plugin" != "" else []
+PROJECT_NAME = "voxblox_rviz_plugin"
+PROJECT_SPACE_DIR = "/home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/merged"
+PROJECT_VERSION = "0.0.0"

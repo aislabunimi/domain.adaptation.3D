@@ -1,0 +1,9 @@
+[ 12%] [32mBuilding CXX object CMakeFiles/kimera_semantics.dir/src/csv_iterator.cpp.o[0m
+[ 25%] [32mBuilding CXX object CMakeFiles/kimera_semantics.dir/src/semantic_integrator_base.cpp.o[0m
+[ 37%] [32mBuilding CXX object CMakeFiles/kimera_semantics.dir/src/semantic_tsdf_integrator_factory.cpp.o[0m
+[ 50%] [32mBuilding CXX object CMakeFiles/kimera_semantics.dir/src/semantic_tsdf_integrator_fast.cpp.o[0m
+[ 62%] [32mBuilding CXX object CMakeFiles/kimera_semantics.dir/src/color.cpp.o[0m
+[ 75%] [32mBuilding CXX object CMakeFiles/kimera_semantics.dir/src/semantic_tsdf_integrator_merged.cpp.o[0m
+[ 87%] [32mBuilding CXX object CMakeFiles/kimera_semantics.dir/src/simulation/semantic_simulation_world.cpp.o[0m
+[100%] [32m[1mLinking CXX shared library /home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/merged/lib/libkimera_semantics.so[0m
+[100%] Built target kimera_semantics

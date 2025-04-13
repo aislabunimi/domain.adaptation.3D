@@ -1,0 +1,12 @@
+# This is a generated file and its contents are an internal implementation detail.
+# The download step will be re-executed if anything in this file changes.
+# No other meaning or use of this file is supported.
+
+method=url
+command=/home/michele/miniconda3/envs/habitat/bin/cmake;-DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE;-P;/home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/build/gflags_catkin/gflags_src-prefix/src/gflags_src-stamp/download-gflags_src.cmake;COMMAND;/home/michele/miniconda3/envs/habitat/bin/cmake;-DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE;-P;/home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/build/gflags_catkin/gflags_src-prefix/src/gflags_src-stamp/verify-gflags_src.cmake;COMMAND;/home/michele/miniconda3/envs/habitat/bin/cmake;-DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE;-P;/home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/build/gflags_catkin/gflags_src-prefix/src/gflags_src-stamp/extract-gflags_src.cmake
+source_dir=/home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/build/gflags_catkin/gflags_src-prefix/src/gflags_src
+work_dir=/home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/build/gflags_catkin/gflags_src-prefix/src
+url(s)=https://github.com/gflags/gflags/archive/v2.2.1.zip
+hash=MD5=2d988ef0b50939fb50ada965dafce96b
+      no_extract=
+

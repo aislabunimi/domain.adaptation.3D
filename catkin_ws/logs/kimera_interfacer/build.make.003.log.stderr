@@ -1,0 +1,21 @@
+Traceback (most recent call last):
+  File "/opt/ros/noetic/share/genpy/cmake/../../../lib/genpy/genmsg_py.py", line 43, in <module>
+    import genpy.generator
+  File "/opt/ros/noetic/lib/python3/dist-packages/genpy/__init__.py", line 34, in <module>
+    from . message import Message, SerializationError, DeserializationError, MessageException, struct_I
+  File "/opt/ros/noetic/lib/python3/dist-packages/genpy/message.py", line 48, in <module>
+    import yaml
+ModuleNotFoundError: No module named 'yaml'
+Traceback (most recent call last):
+  File "/opt/ros/noetic/share/genpy/cmake/../../../lib/genpy/genmsg_py.py", line 43, in <module>
+    import genpy.generator
+  File "/opt/ros/noetic/lib/python3/dist-packages/genpy/__init__.py", line 34, in <module>
+    from . message import Message, SerializationError, DeserializationError, MessageException, struct_I
+  File "/opt/ros/noetic/lib/python3/dist-packages/genpy/message.py", line 48, in <module>
+    import yaml
+ModuleNotFoundError: No module named 'yaml'
+make[2]: *** [CMakeFiles/kimera_interfacer_generate_messages_py.dir/build.make:66: /home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/merged/lib/python3/dist-packages/kimera_interfacer/msg/_SyncSemantic.py] Error 1
+make[2]: *** Waiting for unfinished jobs....
+make[2]: *** [CMakeFiles/kimera_interfacer_generate_messages_py.dir/build.make:73: /home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/merged/lib/python3/dist-packages/kimera_interfacer/msg/_SyncSemanticRaw.py] Error 1
+make[1]: *** [CMakeFiles/Makefile2:434: CMakeFiles/kimera_interfacer_generate_messages_py.dir/all] Error 2
+make: *** [Makefile:141: all] Error 2

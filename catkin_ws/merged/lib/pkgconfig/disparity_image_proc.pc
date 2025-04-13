@@ -1,0 +1,8 @@
+prefix=/home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/merged
+
+Name: disparity_image_proc
+Description: Description of disparity_image_proc
+Version: 1.12.5
+Cflags: 
+Libs: -L${prefix}/lib -ldisparity_image_proc
+Requires: image_geometry image_proc sensor_msgs stereo_msgs

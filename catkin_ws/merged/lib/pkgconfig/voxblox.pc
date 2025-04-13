@@ -1,0 +1,8 @@
+prefix=/home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/merged
+
+Name: voxblox
+Description: Description of voxblox
+Version: 0.0.0
+Cflags: -I/home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/src/dipendenze_kimera/voxblox/voxblox/include -I/home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/merged/include
+Libs: -L${prefix}/lib -lvoxblox_proto -lvoxblox
+Requires: eigen_catkin eigen_checks gflags_catkin glog_catkin minkindr protobuf_catkin

@@ -1,0 +1,7 @@
+# Finetune.srv
+string dataset_path
+uint32 num_epochs
+uint32 num_classes 
+---
+bool success
+string message

@@ -1,0 +1,10 @@
+In file included from [01m[K/home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/src/Kimera-Semantics/kimera_semantics_ros/include/kimera_semantics_ros/depth_map_to_pointcloud.h:50[m[K,
+                 from [01m[K/home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/src/dipendenze_kimera/Kimera-Interfacer/kimera_interfacer/src/kimera_interfacer.cpp:12[m[K:
+[01m[K/opt/ros/noetic/include/depth_image_proc/depth_traits.h:[m[K In static member function ‘[01m[Kstatic void depth_image_proc::DepthTraits<short unsigned int>::initializeBuffer(std::vector<unsigned char>&)[m[K’:
+[01m[K/opt/ros/noetic/include/depth_image_proc/depth_traits.h:54:61:[m[K [01;35m[Kwarning: [m[Kunused parameter ‘[01m[Kbuffer[m[K’ [[01;35m[K-Wunused-parameter[m[K]
+   54 |   static inline void initializeBuffer([01;35m[Kstd::vector<uint8_t>& buffer[m[K) {} // Do nothing - already zero-filled
+      |                                       [01;35m[K~~~~~~~~~~~~~~~~~~~~~~^~~~~~[m[K
+[01m[K/home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/src/dipendenze_kimera/Kimera-Interfacer/kimera_interfacer/src/kimera_interfacer.cpp:[m[K In function ‘[01m[Kint main(int, char**)[m[K’:
+[01m[K/home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/src/dipendenze_kimera/Kimera-Interfacer/kimera_interfacer/src/kimera_interfacer.cpp:109:38:[m[K [01;35m[Kwarning: [m[Kcomparison of integer expressions of different signedness: ‘[01m[Kstd_msgs::Header_<std::allocator<void> >::_seq_type[m[K’ {aka ‘[01m[Kunsigned int[m[K’} and ‘[01m[Kint[m[K’ [[01;35m[K-Wsign-compare[m[K]
+  109 |     bool res = [01;35m[Kdepth_ptr->header.seq != last_frame_integrated[m[K;
+      |                [01;35m[K~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~[m[K

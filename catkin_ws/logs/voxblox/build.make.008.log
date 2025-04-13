@@ -1,0 +1,28 @@
+[  3%] [34m[1mRunning C++ protocol buffer compiler on proto/voxblox/Block.proto.[0m
+[  6%] [34m[1mRunning C++ protocol buffer compiler on proto/voxblox/Layer.proto.[0m
+[  9%] [32mBuilding CXX object CMakeFiles/voxblox_proto.dir/compiled_proto/voxblox/Layer.pb.cc.o[0m
+[ 12%] [32mBuilding CXX object CMakeFiles/voxblox_proto.dir/compiled_proto/voxblox/Block.pb.cc.o[0m
+[ 16%] [32m[1mLinking CXX shared library /home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/merged/lib/libvoxblox_proto.so[0m
+[ 16%] Built target voxblox_proto
+[ 22%] [32mBuilding CXX object CMakeFiles/voxblox.dir/src/alignment/icp.cc.o[0m
+[ 22%] [32mBuilding CXX object CMakeFiles/voxblox.dir/src/core/block.cc.o[0m
+[ 25%] [32mBuilding CXX object CMakeFiles/voxblox.dir/src/core/esdf_map.cc.o[0m
+[ 29%] [32mBuilding CXX object CMakeFiles/voxblox.dir/src/core/tsdf_map.cc.o[0m
+[ 32%] [32mBuilding CXX object CMakeFiles/voxblox.dir/src/integrator/esdf_integrator.cc.o[0m
+[ 35%] [32mBuilding CXX object CMakeFiles/voxblox.dir/src/integrator/esdf_occ_integrator.cc.o[0m
+[ 38%] [32mBuilding CXX object CMakeFiles/voxblox.dir/src/integrator/intensity_integrator.cc.o[0m
+[ 41%] [32mBuilding CXX object CMakeFiles/voxblox.dir/src/integrator/tsdf_integrator.cc.o[0m
+[ 45%] [32mBuilding CXX object CMakeFiles/voxblox.dir/src/io/sdf_ply.cc.o[0m
+[ 48%] [32mBuilding CXX object CMakeFiles/voxblox.dir/src/simulation/objects.cc.o[0m
+[ 51%] [32mBuilding CXX object CMakeFiles/voxblox.dir/src/simulation/simulation_world.cc.o[0m
+[ 54%] [32mBuilding CXX object CMakeFiles/voxblox.dir/src/utils/evaluation_utils.cc.o[0m
+[ 58%] [32mBuilding CXX object CMakeFiles/voxblox.dir/src/utils/layer_utils.cc.o[0m
+[ 61%] [32mBuilding CXX object CMakeFiles/voxblox.dir/src/utils/neighbor_tools.cc.o[0m
+[ 64%] [32m[1mLinking CXX shared library /home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/merged/lib/libvoxblox.so[0m
+[ 87%] Built target voxblox
+[ 93%] [32mBuilding CXX object CMakeFiles/test_load_esdf.dir/test/test_load_esdf.cc.o[0m
+[ 93%] [32mBuilding CXX object CMakeFiles/tsdf_to_esdf.dir/test/tsdf_to_esdf.cc.o[0m
+[ 96%] [32m[1mLinking CXX executable /home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/merged/lib/voxblox/test_load_esdf[0m
+[ 96%] Built target test_load_esdf
+[100%] [32m[1mLinking CXX executable /home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/merged/lib/voxblox/tsdf_to_esdf[0m
+[100%] Built target tsdf_to_esdf

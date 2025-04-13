@@ -1,0 +1,138 @@
+[  0%] Built target stereo_msgs_generate_messages_py
+[  0%] Built target sensor_msgs_generate_messages_py
+[  0%] Built target tf2_msgs_generate_messages_lisp
+[  0%] Built target actionlib_msgs_generate_messages_lisp
+[  0%] Built target actionlib_msgs_generate_messages_nodejs
+[  0%] Built target stereo_msgs_generate_messages_cpp
+[  0%] Built target actionlib_generate_messages_eus
+[  0%] Built target actionlib_generate_messages_py
+[  0%] Built target rosgraph_msgs_generate_messages_cpp
+[  0%] Built target rviz_generate_messages_eus
+[  0%] Built target _kimera_interfacer_generate_messages_check_deps_SyncSemanticRaw
+[  0%] Built target _kimera_interfacer_generate_messages_check_deps_SyncSemantic
+[  0%] Built target nav_msgs_generate_messages_py
+[  0%] Built target stereo_msgs_generate_messages_nodejs
+[  0%] Built target stereo_msgs_generate_messages_lisp
+[  0%] Built target roscpp_generate_messages_nodejs
+[  0%] Built target pcl_msgs_generate_messages_cpp
+[  0%] Built target stereo_msgs_generate_messages_eus
+[  0%] Built target dynamic_reconfigure_gencfg
+[  0%] Built target actionlib_msgs_generate_messages_py
+[  0%] Built target rosgraph_msgs_generate_messages_nodejs
+[  0%] Built target actionlib_generate_messages_cpp
+[  0%] Built target rosgraph_msgs_generate_messages_eus
+[  0%] Built target actionlib_generate_messages_nodejs
+[  0%] Built target std_srvs_generate_messages_py
+[  0%] Built target sensor_msgs_generate_messages_cpp
+[  0%] Built target nav_msgs_generate_messages_nodejs
+[  0%] Built target std_msgs_generate_messages_py
+[  0%] Built target tf2_msgs_generate_messages_py
+[  0%] Built target dynamic_reconfigure_generate_messages_nodejs
+[  0%] Built target bond_generate_messages_cpp
+[  0%] Built target geometry_msgs_generate_messages_cpp
+[  0%] Built target actionlib_generate_messages_lisp
+[  0%] Built target actionlib_msgs_generate_messages_eus
+[  0%] Built target dynamic_reconfigure_generate_messages_py
+[  0%] Built target rosgraph_msgs_generate_messages_lisp
+[  0%] Built target std_srvs_generate_messages_cpp
+[  0%] Built target std_msgs_generate_messages_lisp
+[  0%] Built target sensor_msgs_generate_messages_eus
+[  0%] Built target roscpp_generate_messages_py
+[  0%] Built target nodelet_topic_tools_gencfg
+[  0%] Built target voxblox_msgs_generate_messages_eus
+[  0%] Built target tf2_msgs_generate_messages_eus
+[  0%] Built target tf_generate_messages_lisp
+[  0%] Built target sensor_msgs_generate_messages_nodejs
+[  0%] Built target rviz_generate_messages_cpp
+[  0%] Built target roscpp_generate_messages_cpp
+[  0%] Built target geometry_msgs_generate_messages_py
+[  0%] Built target image_proc_gencfg
+[  0%] Built target tf_generate_messages_nodejs
+[  0%] Built target topic_tools_generate_messages_py
+[  0%] Built target map_msgs_generate_messages_py
+[  0%] Built target geometry_msgs_generate_messages_lisp
+[  0%] Built target nav_msgs_generate_messages_lisp
+[  0%] Built target tf2_msgs_generate_messages_cpp
+[  0%] Built target std_msgs_generate_messages_cpp
+[  0%] Built target dynamic_reconfigure_generate_messages_lisp
+[  0%] Built target nodelet_generate_messages_lisp
+[  0%] Built target geometry_msgs_generate_messages_eus
+[  0%] Built target std_msgs_generate_messages_nodejs
+[  0%] Built target dynamic_reconfigure_generate_messages_eus
+[  0%] Built target roscpp_generate_messages_eus
+[  0%] Built target pcl_msgs_generate_messages_eus
+[  0%] Built target pcl_msgs_generate_messages_lisp
+[  0%] Built target pcl_msgs_generate_messages_nodejs
+[  0%] Built target pcl_msgs_generate_messages_py
+[  0%] Built target dynamic_reconfigure_generate_messages_cpp
+[  0%] Built target tf2_msgs_generate_messages_nodejs
+[  0%] Built target sensor_msgs_generate_messages_lisp
+[  0%] Built target nodelet_generate_messages_cpp
+[  0%] Built target nodelet_generate_messages_eus
+[  0%] Built target nodelet_generate_messages_nodejs
+[  0%] Built target nodelet_generate_messages_py
+[  0%] Built target std_srvs_generate_messages_nodejs
+[  0%] Built target map_msgs_generate_messages_eus
+[  0%] Built target bond_generate_messages_eus
+[  0%] Built target bond_generate_messages_nodejs
+[  0%] Built target bond_generate_messages_lisp
+[  0%] Built target bond_generate_messages_py
+[  0%] Built target actionlib_msgs_generate_messages_cpp
+[  0%] Built target std_srvs_generate_messages_eus
+[  0%] Built target std_msgs_generate_messages_eus
+[  0%] Built target std_srvs_generate_messages_lisp
+[  0%] Built target roscpp_generate_messages_lisp
+[  0%] Built target topic_tools_generate_messages_cpp
+[  0%] Built target visualization_msgs_generate_messages_py
+[  0%] Built target voxblox_msgs_generate_messages_lisp
+[  0%] Built target topic_tools_generate_messages_eus
+[  0%] Built target topic_tools_generate_messages_lisp
+[  0%] Built target topic_tools_generate_messages_nodejs
+[  0%] Built target nav_msgs_generate_messages_cpp
+[  0%] Built target visualization_msgs_generate_messages_eus
+[  0%] Built target visualization_msgs_generate_messages_lisp
+[  0%] Built target rosgraph_msgs_generate_messages_py
+[  0%] Built target visualization_msgs_generate_messages_nodejs
+[  0%] Built target voxblox_msgs_generate_messages_cpp
+[  0%] Built target tf_generate_messages_cpp
+[  0%] Built target voxblox_msgs_generate_messages_nodejs
+[  0%] Built target voxblox_msgs_generate_messages_py
+[  0%] Built target tf_generate_messages_py
+[  0%] Built target rviz_generate_messages_lisp
+[  0%] Built target rviz_generate_messages_py
+[  0%] Built target rviz_generate_messages_nodejs
+[  0%] Built target map_msgs_generate_messages_cpp
+[  0%] Built target map_msgs_generate_messages_lisp
+[  0%] Built target map_msgs_generate_messages_nodejs
+[  7%] Built target pcl_ros_gencfg
+[  7%] Built target nav_msgs_generate_messages_eus
+[ 14%] Built target kimera_interfacer_generate_messages_cpp
+[ 35%] Built target kimera_interfacer_generate_messages_eus
+[ 50%] Built target kimera_interfacer_generate_messages_lisp
+[ 50%] Built target geometry_msgs_generate_messages_nodejs
+[ 78%] Built target tf_generate_messages_eus
+[ 78%] [34m[1mGenerating Python from MSG kimera_interfacer/SyncSemanticRaw[0m
+[ 78%] [34m[1mGenerating Python from MSG kimera_interfacer/SyncSemantic[0m
+[ 78%] Built target kimera_interfacer_generate_messages_nodejs
+[ 78%] Built target visualization_msgs_generate_messages_cpp
+Traceback (most recent call last):
+Traceback (most recent call last):
+  File "/opt/ros/noetic/share/genpy/cmake/../../../lib/genpy/genmsg_py.py", line 43, in <module>
+  File "/opt/ros/noetic/share/genpy/cmake/../../../lib/genpy/genmsg_py.py", line 43, in <module>
+    import genpy.generator
+    import genpy.generator
+  File "/opt/ros/noetic/lib/python3/dist-packages/genpy/__init__.py", line 34, in <module>
+  File "/opt/ros/noetic/lib/python3/dist-packages/genpy/__init__.py", line 34, in <module>
+    from . message import Message, SerializationError, DeserializationError, MessageException, struct_I
+    from . message import Message, SerializationError, DeserializationError, MessageException, struct_I
+  File "/opt/ros/noetic/lib/python3/dist-packages/genpy/message.py", line 48, in <module>
+  File "/opt/ros/noetic/lib/python3/dist-packages/genpy/message.py", line 48, in <module>
+    import yaml
+    import yaml
+ModuleNotFoundError: No module named 'yaml'
+ModuleNotFoundError: No module named 'yaml'
+make[2]: *** [CMakeFiles/kimera_interfacer_generate_messages_py.dir/build.make:66: /home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/merged/lib/python3/dist-packages/kimera_interfacer/msg/_SyncSemantic.py] Error 1
+make[2]: *** Waiting for unfinished jobs....
+make[2]: *** [CMakeFiles/kimera_interfacer_generate_messages_py.dir/build.make:73: /home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/merged/lib/python3/dist-packages/kimera_interfacer/msg/_SyncSemanticRaw.py] Error 1
+make[1]: *** [CMakeFiles/Makefile2:434: CMakeFiles/kimera_interfacer_generate_messages_py.dir/all] Error 2
+make: *** [Makefile:141: all] Error 2

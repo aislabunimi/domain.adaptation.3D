@@ -1,0 +1,8 @@
+prefix=/home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/merged
+
+Name: gflags_catkin
+Description: Description of gflags_catkin
+Version: 2.2.1
+Cflags: -I/home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/merged/include
+Libs: -L${prefix}/lib -lgflags
+Requires: 

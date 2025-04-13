@@ -1,0 +1,130 @@
+[  0%] Built target nav_msgs_generate_messages_py
+[  0%] Built target sensor_msgs_generate_messages_eus
+[  0%] Built target sensor_msgs_generate_messages_lisp
+[  0%] Built target sensor_msgs_generate_messages_py
+[  0%] Built target sensor_msgs_generate_messages_cpp
+[  0%] Built target sensor_msgs_generate_messages_nodejs
+[  0%] Built target geometry_msgs_generate_messages_nodejs
+[  0%] Built target geometry_msgs_generate_messages_eus
+[  0%] Built target geometry_msgs_generate_messages_lisp
+[  0%] Built target geometry_msgs_generate_messages_cpp
+[  0%] Built target geometry_msgs_generate_messages_py
+[  0%] Built target std_msgs_generate_messages_cpp
+[  0%] Built target std_msgs_generate_messages_lisp
+[  0%] Built target std_msgs_generate_messages_eus
+[  0%] Built target std_msgs_generate_messages_py
+[  0%] Built target std_msgs_generate_messages_nodejs
+[  0%] Built target tf_generate_messages_cpp
+[  0%] Built target tf_generate_messages_eus
+[  0%] Built target tf_generate_messages_lisp
+[  0%] Built target tf_generate_messages_nodejs
+[  0%] Built target tf_generate_messages_py
+[  0%] Built target roscpp_generate_messages_cpp
+[  0%] Built target roscpp_generate_messages_lisp
+[  0%] Built target roscpp_generate_messages_eus
+[  0%] Built target roscpp_generate_messages_nodejs
+[  0%] Built target roscpp_generate_messages_py
+[  0%] Built target rosgraph_msgs_generate_messages_cpp
+[  0%] Built target rosgraph_msgs_generate_messages_eus
+[  0%] Built target rosgraph_msgs_generate_messages_nodejs
+[  0%] Built target rosgraph_msgs_generate_messages_lisp
+[  0%] Built target rosgraph_msgs_generate_messages_py
+[  0%] Built target actionlib_generate_messages_cpp
+[  0%] Built target actionlib_generate_messages_eus
+[  0%] Built target actionlib_generate_messages_nodejs
+[  0%] Built target actionlib_generate_messages_py
+[  0%] Built target actionlib_generate_messages_lisp
+[  0%] Built target actionlib_msgs_generate_messages_cpp
+[  0%] Built target actionlib_msgs_generate_messages_lisp
+[  0%] Built target actionlib_msgs_generate_messages_eus
+[  0%] Built target tf2_msgs_generate_messages_cpp
+[  0%] Built target actionlib_msgs_generate_messages_py
+[  0%] Built target actionlib_msgs_generate_messages_nodejs
+[  0%] Built target tf2_msgs_generate_messages_lisp
+[  0%] Built target tf2_msgs_generate_messages_eus
+[  0%] Built target tf2_msgs_generate_messages_nodejs
+[  0%] Built target pcl_msgs_generate_messages_cpp
+[  0%] Built target pcl_msgs_generate_messages_eus
+[  0%] Built target tf2_msgs_generate_messages_py
+[  0%] Built target pcl_msgs_generate_messages_lisp
+[  0%] Built target pcl_msgs_generate_messages_nodejs
+[  0%] Built target pcl_msgs_generate_messages_py
+[  0%] Built target pcl_ros_gencfg
+[  0%] Built target dynamic_reconfigure_generate_messages_cpp
+[  0%] Built target dynamic_reconfigure_generate_messages_eus
+[  0%] Built target dynamic_reconfigure_generate_messages_lisp
+[  0%] Built target dynamic_reconfigure_generate_messages_nodejs
+[  0%] Built target dynamic_reconfigure_generate_messages_py
+[  0%] Built target nodelet_generate_messages_cpp
+[  0%] Built target dynamic_reconfigure_gencfg
+[  0%] Built target nodelet_generate_messages_eus
+[  0%] Built target nodelet_generate_messages_lisp
+[  0%] Built target nodelet_generate_messages_nodejs
+[  0%] Built target nodelet_generate_messages_py
+[  0%] Built target bond_generate_messages_eus
+[  0%] Built target bond_generate_messages_cpp
+[  0%] Built target bond_generate_messages_lisp
+[  0%] Built target bond_generate_messages_nodejs
+[  0%] Built target std_srvs_generate_messages_cpp
+[  0%] Built target std_srvs_generate_messages_eus
+[  0%] Built target nodelet_topic_tools_gencfg
+[  0%] Built target bond_generate_messages_py
+[  0%] Built target std_srvs_generate_messages_lisp
+[  0%] Built target std_srvs_generate_messages_nodejs
+[  0%] Built target topic_tools_generate_messages_cpp
+[  0%] Built target std_srvs_generate_messages_py
+[  0%] Built target topic_tools_generate_messages_eus
+[  0%] Built target topic_tools_generate_messages_nodejs
+[  0%] Built target topic_tools_generate_messages_lisp
+[  0%] Built target topic_tools_generate_messages_py
+[  0%] Built target visualization_msgs_generate_messages_lisp
+[  0%] Built target visualization_msgs_generate_messages_eus
+[  0%] Built target visualization_msgs_generate_messages_cpp
+[  0%] Built target visualization_msgs_generate_messages_py
+[  0%] Built target visualization_msgs_generate_messages_nodejs
+[  0%] Built target voxblox_msgs_generate_messages_cpp
+[  0%] Built target voxblox_msgs_generate_messages_eus
+[  0%] Built target voxblox_msgs_generate_messages_py
+[  0%] Built target voxblox_msgs_generate_messages_lisp
+[  0%] Built target rviz_generate_messages_cpp
+[  0%] Built target voxblox_msgs_generate_messages_nodejs
+[  0%] Built target rviz_generate_messages_eus
+[  0%] Built target rviz_generate_messages_lisp
+[  0%] Built target rviz_generate_messages_py
+[  0%] Built target map_msgs_generate_messages_eus
+[  0%] Built target rviz_generate_messages_nodejs
+[  0%] Built target map_msgs_generate_messages_cpp
+[  0%] Built target map_msgs_generate_messages_lisp
+[  0%] Built target map_msgs_generate_messages_py
+[  0%] Built target map_msgs_generate_messages_nodejs
+[  0%] Built target nav_msgs_generate_messages_eus
+[  0%] Built target nav_msgs_generate_messages_lisp
+[  0%] Built target nav_msgs_generate_messages_cpp
+[  0%] Built target nav_msgs_generate_messages_nodejs
+[  8%] [32mBuilding CXX object CMakeFiles/kimera_semantics_ros.dir/src/ros_params.cpp.o[0m
+[ 16%] [32mBuilding CXX object CMakeFiles/kimera_semantics_ros.dir/src/semantic_simulation_server.cpp.o[0m
+[ 25%] [32mBuilding CXX object CMakeFiles/kimera_semantics_ros.dir/src/semantic_tsdf_server.cpp.o[0m
+[01m[K/home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/src/Kimera-Semantics/kimera_semantics_ros/src/semantic_tsdf_server.cpp:[m[K In member function ‘[01m[Kvoid kimera::SemanticTsdfServer::serializeVoxelLayer(const string&)[m[K’:
+[01m[K/home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/src/Kimera-Semantics/kimera_semantics_ros/src/semantic_tsdf_server.cpp:131:68:[m[K [01;35m[Kwarning: [m[Kleft operand of comma operator has no effect [[01;35m[K-Wunused-value[m[K]
+  131 |             semantic_voxel_proto->add_semantic_labels( float(value[[01;35m[Ki[m[K,0]) );
+      |                                                                    [01;35m[K^[m[K
+[01m[K/home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/src/Kimera-Semantics/kimera_semantics_ros/src/semantic_tsdf_server.cpp:136:10:[m[K [01;35m[Kwarning: [m[Kunused variable ‘[01m[Kres[m[K’ [[01;35m[K-Wunused-variable[m[K]
+  136 |     auto [01;35m[Kres[m[K = voxblox::utils::writeProtoMsgToStream( semantic_map_proto, &outfile );
+      |          [01;35m[K^~~[m[K
+[ 33%] [32m[1mLinking CXX shared library /home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/merged/lib/libkimera_semantics_ros.so[0m
+[ 50%] Built target kimera_semantics_ros
+[ 58%] [32mBuilding CXX object CMakeFiles/semantic_simulator_eval.dir/src/semantic_simulation_eval.cpp.o[0m
+[ 66%] [32mBuilding CXX object CMakeFiles/kimera_semantics_node.dir/src/kimera_semantics_node.cpp.o[0m
+[ 75%] [32mBuilding CXX object CMakeFiles/kimera_semantics_rosbag.dir/src/kimera_semantics_rosbag.cpp.o[0m
+In file included from [01m[K/home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/src/Kimera-Semantics/kimera_semantics_ros/include/kimera_semantics_ros/depth_map_to_pointcloud.h:50[m[K,
+                 from [01m[K/home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/src/Kimera-Semantics/kimera_semantics_ros/src/kimera_semantics_rosbag.cpp:16[m[K:
+[01m[K/opt/ros/noetic/include/depth_image_proc/depth_traits.h:[m[K In static member function ‘[01m[Kstatic void depth_image_proc::DepthTraits<short unsigned int>::initializeBuffer(std::vector<unsigned char>&)[m[K’:
+[01m[K/opt/ros/noetic/include/depth_image_proc/depth_traits.h:54:61:[m[K [01;35m[Kwarning: [m[Kunused parameter ‘[01m[Kbuffer[m[K’ [[01;35m[K-Wunused-parameter[m[K]
+   54 |   static inline void initializeBuffer([01;35m[Kstd::vector<uint8_t>& buffer[m[K) {} // Do nothing - already zero-filled
+      |                                       [01;35m[K~~~~~~~~~~~~~~~~~~~~~~^~~~~~[m[K
+[ 83%] [32m[1mLinking CXX executable /home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/merged/lib/kimera_semantics_ros/semantic_simulator_eval[0m
+[ 91%] [32m[1mLinking CXX executable /home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/merged/lib/kimera_semantics_ros/kimera_semantics_node[0m
+[ 91%] Built target semantic_simulator_eval
+[ 91%] Built target kimera_semantics_node
+[100%] [32m[1mLinking CXX executable /home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/merged/lib/kimera_semantics_ros/kimera_semantics_rosbag[0m
+[100%] Built target kimera_semantics_rosbag
