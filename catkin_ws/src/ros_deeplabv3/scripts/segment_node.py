@@ -14,15 +14,15 @@ class DeepLabSegmenter:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         # Load model
-        self.model = models.segmentation.deeplabv3_resnet101(pretrained=False)
-        self.model.classifier[4] = torch.nn.Conv2d(256, 21, kernel_size=1)  # Adjust for num_classes
+        self.model = models.segmentation.deeplabv3_resnet50(num_classes=41, aux_loss=True)
 
-        finetuned_path = os.path.expanduser("~/deeplab_finetuned.pth")
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        finetuned_path = os.path.join(base_dir, "..", "models", "deeplabv3.pth")
         if os.path.exists(finetuned_path):
             rospy.loginfo("Loading finetuned model...")
             self.model.load_state_dict(torch.load(finetuned_path, map_location=self.device))
         else:
-            rospy.logwarn("Finetuned model not found. Using untrained model!")
+            rospy.logwarn("Finetuned model not found. Using untrained model! in "+ finetuned_path)
 
         self.model.to(self.device)
         self.model.eval()
@@ -35,7 +35,7 @@ class DeepLabSegmenter:
         ])
 
         rospy.Subscriber("/camera/image_raw", SensorImage, self.callback)
-        self.pub = rospy.Publisher("/segmented_image", SensorImage, queue_size=1)
+        self.pub = rospy.Publisher("/deeplab/segmented_image", SensorImage, queue_size=1)
 
     def callback(self, msg):
         try:
