@@ -1,8 +1,0 @@
-prefix=/home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/merged
-
-Name: eigen_checks
-Description: Description of eigen_checks
-Version: 0.0.1
-Cflags: -I/home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/src/dipendenze_kimera/eigen_checks/include
-Libs: -L${prefix}/lib -leigen_checks
-Requires: 

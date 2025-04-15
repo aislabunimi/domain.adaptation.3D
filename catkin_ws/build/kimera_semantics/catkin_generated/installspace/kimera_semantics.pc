@@ -1,8 +1,0 @@
-prefix=/home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/install
-
-Name: kimera_semantics
-Description: Description of kimera_semantics
-Version: 1.0.0
-Cflags: -I${prefix}/include
-Libs: -L${prefix}/lib -lkimera_semantics
-Requires: eigen_catkin eigen_checks gflags_catkin glog_catkin minkindr voxblox

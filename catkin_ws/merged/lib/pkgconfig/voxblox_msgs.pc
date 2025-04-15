@@ -1,8 +1,0 @@
-prefix=/home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/merged
-
-Name: voxblox_msgs
-Description: Description of voxblox_msgs
-Version: 0.0.0
-Cflags: -I/home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/merged/include
-Libs: -L${prefix}/lib 
-Requires: message_generation message_runtime std_msgs

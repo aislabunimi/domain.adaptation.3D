@@ -1,8 +1,0 @@
-prefix=/home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/merged
-
-Name: voxblox_rviz_plugin
-Description: Description of voxblox_rviz_plugin
-Version: 0.0.0
-Cflags: -I/home/michele/Desktop/Colombo/tesi.triennale.colombo/catkin_ws/src/dipendenze_kimera/voxblox/voxblox_rviz_plugin/include
-Libs: -L${prefix}/lib -lvoxblox_rviz_plugin
-Requires: rviz voxblox voxblox_msgs
