@@ -1,5 +1,6 @@
 output_db
-*pth
+*.pth
+*.ckpt
 catkin_ws/build
 catkin_ws/merged
 catkin_ws/logs
