@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 import rospy
+import std_msgs
 from std_msgs.msg import String, Bool
 from sensor_msgs.msg import Image, CameraInfo, PointCloud2, PointField
 from nav_msgs.msg import OccupancyGrid
 from ros_deeplabv3 import Finetune
 import tf_conversions
 import tf2_ros
+from kimera_interfacer.msg import SyncSemantic
+from habitat_ros_bridge.msg import Sensors
+
 
 from  geometry_msgs.msg import TransformStamped
 
@@ -22,35 +26,14 @@ class ControlNode:
         # Other initialization
         self.running = True
 
-    def broadcast_camera_pose(H, frames, stamp):
-
-        br = tf2_ros.TransformBroadcaster()
-        t = TransformStamped()
-
-        t.header.stamp = stamp
-        t.header.frame_id = frames[0]
-        t.child_frame_id = frames[1]
-        t.transform.translation.x = H[0, 3]
-        t.transform.translation.y = H[1, 3]
-        t.transform.translation.z = H[2, 3]
-        q = tf_conversions.transformations.quaternion_from_matrix(H)
-        t.transform.rotation.x = q[0]
-        t.transform.rotation.y = q[1]
-        t.transform.rotation.z = q[2]
-        t.transform.rotation.w = q[3]
-        br.sendTransform(t)
 
     def init_publishers(self):
 
         """Initialize all publishers"""
         #+Pose on func
-        self.control_pub = rospy.Publisher('/sim/rgb', Image, queue_size=10)
-        
-        self.depth_pub = rospy.Publisher('/sim/depth', Image, queue_size=10)
-        
-        self.deeplab_pub = rospy.Publisher('/sim/mesh_map', PointCloud2, queue_size=10)
 
-        self.semantic_pub= rospy.Publisher('/sim/semantic', Image, queue_size=10)
+        self.kimera_sync_pub= rospy.Publisher('/sync_semantic',)
+        self.deeplab_pub = rospy.Publisher('/sim/mesh_map', PointCloud2, queue_size=10)
 
         self.finetune_pub= rospy.Publisher('/finetune_model', Finetune, queue_size=10)
 
@@ -60,47 +43,33 @@ class ControlNode:
         """Initialize all subscribers"""
 
         # RGB+DEPTH(+Pose on func)
-        rgb_topic = rospy.get_param('~rgb_topic', '/habitat/rgb')
-        depth_topic = rospy.get_param('~depth_topic', '/habitat/depth')
-        tf_topic= rospy.get_param('~tf_topic', '/habitat/tf')
-        rospy.Subscriber(rgb_topic, Image, self.rgb_callback)
-        rospy.Subscriber(depth_topic, Image, self.depth_callback)
-        rospy.Subscriber(tf_topic, TransformStamped, self.pose_callback)
-        
-        # From Kimera
-        rospy.Subscriber('/kimera/mesh_map', OccupancyGrid, self.mesh_map_callback)
-        rospy.Subscriber('/kimera/labels', Image, self.kimera_labels_callback)
-        
+        scene_topic = rospy.get_param('~scene_topic', '/habitat/scene/sensors')
+        self.rgb_sub = rospy.Subscriber(scene_topic,Sensors,self.sensors_env_callback)
         # From DeepLabV3
         rospy.Subscriber("/deeplab/segmented_image", Image, self.deeplab_labels_callback)
+   
+
         
-    def rgb_callback(self, msg):
-        """Callback for RGB images from habitat"""
-        # Process RGB image
-        # Forward to DeepLabV3
-        self.deeplab_pub.publish(msg)
+        # From Kimera
+        rospy.Subscriber('/kimera/mesh_map', PointCloud2, self.mesh_map_callback)
+        rospy.Subscriber('/kimera/labels', Image, self.kimera_labels_callback)
         
-    def depth_callback(self, msg):
-        """Callback for depth images from habitat"""
-        # Process depth image
-        # Forward to Kimera
-        self.kimera_pub.publish(msg)
         
-    def pose_callback(self, msg):
-        """Callback for pose information"""
-        # Forward pose to exploration and Kimera
-        self.exploration_pub.publish(msg)
-        self.kimera_pub.publish(msg)
         
-    def exploration_status_callback(self, msg):
-        """Callback for exploration status"""
-        # Handle exploration status updates
-        pass
+    def sensors_env_callback(self, msg):
+        stamp = msg.header.stamp
+        rospy.loginfo(f"Synchronized RGB + Depth @ {stamp}")
+
+        # Save for later matching with segmentation result
+        self.pending_frames[stamp.to_sec()] = (msg)
+
+        # Send RGB to DeepLab for segmentation
+        self.deeplab_pub.publish(msg.rgb)
+        
+    
         
     def mesh_map_callback(self, msg):
-        """Callback for mesh map from Kimera"""
-        # Process mesh map
-        pass
+        self.current_mesh=msg
         
     def kimera_labels_callback(self, msg):
         """Callback for labels from Kimera"""
@@ -108,16 +77,27 @@ class ControlNode:
         pass
         
     def deeplab_labels_callback(self, msg):
-        """Callback for labels from DeepLab"""
-        # Process labels
-        # Could forward to finetuning module
+        stamp = msg.header.stamp.to_sec()
+
+        if stamp in self.pending_frames:
+            popmsg = self.pending_frames.pop(stamp)
+            rospy.loginfo(f"Got segmented image @ {stamp}, matching RGB + Depth")
+            res = SyncSemantic(
+                header=std_msgs.msg.Header(stamp=rospy.Time.now()),
+                rgb=popmsg.rgb,
+                depth=popmsg.depth,
+                labels=msg,
+            )
+            self.kimera_sync_pub.publish(res)
+        else:
+            rospy.logwarn(f"Segmented image with stamp {stamp} had no matching RGB/Depth pair")
         pass
         
     def run(self):
         """Main control loop"""
         rate = rospy.Rate(10) # 10Hz
         while not rospy.is_shutdown() and self.running:
-            # Main control logic here
+            
             rate.sleep()
 
 if __name__ == '__main__':

@@ -5,9 +5,10 @@ from sensor_msgs.msg import Image as SensorImage
 import habitat_sim
 import numpy as np
 from std_msgs.msg import Float64
-from PILBridge import PILBridge
+from Modules import PILBridge
 import matplotlib.pyplot as plt
 from PIL import Image as PILImage
+from habitat_ros_bridge.msg import Sensors
 
 test_scene = "/home/michele/Desktop/Colombo/HM3D/minival/00800-TEEsavR23oF/TEEsavR23oF.basis.glb"
 semantic_test_scene = "/home/michele/Desktop/Colombo/HM3D/minival/00800-TEEsavR23oF/TEEsavR23oF.semantic.glb"
@@ -69,8 +70,7 @@ class HabitatROSBridge:
         rospy.loginfo(self.sim)
         
         rospy.Subscriber("/cmd_vel", Twist, self.cmd_callback)
-        self.rgb_pub = rospy.Publisher("/habitat/rgb", SensorImage, queue_size=10)
-        self.depth_pub = rospy.Publisher("/habitat/depth", SensorImage, queue_size=10)
+        self.scene_pub = rospy.Publisher("/habitat/scene/sensors", sensors, queue_size=10)
         self.semantic_pub = rospy.Publisher("/habitat/semantic", SensorImage, queue_size=10)
 
     
@@ -124,7 +124,7 @@ class HabitatROSBridge:
         
         # Publish RGB image
         rgb = obs["color_sensor"][:, :, :3]  # Extract RGB data
-        rgb_msg = PILBridge.numpy_to_rosimg(
+        rgb_msg =pilBridge.numpy_to_rosimg(
             rgb,
             frame_id="habitat_rgb_camera",
             encoding="rgb8"
@@ -134,7 +134,7 @@ class HabitatROSBridge:
         # Publish Depth image
         depth = obs["depth_sensor"]
         depth_32fc1 = depth.astype(np.float32)
-        depth_msg = PILBridge.numpy_to_rosimg(
+        depth_msg = pilBridge.numpy_to_rosimg(
             depth_32fc1,
             frame_id="habitat_depth_camera",
             encoding="32FC1"
@@ -150,7 +150,7 @@ class HabitatROSBridge:
         # Se l'immagine ha 4 canali (RGBA), rimuovi il canale alpha
         semantic_img_array = semantic_img_array[:, :, :3]
 
-        semantic_msg = PILBridge.numpy_to_rosimg(
+        semantic_msg = pilBridge.numpy_to_rosimg(
             semantic_img_array,
             frame_id="habitat_semantic_camera",
             encoding="rgb8"

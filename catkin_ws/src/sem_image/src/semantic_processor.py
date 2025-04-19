@@ -2,7 +2,7 @@
 import rospy
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import Image as SensorImage
-from PILBridge import PILBridge
+from TestScripts.PILBridge import PILBridge
 import torch
 from PIL import Image
 from torchvision import transforms

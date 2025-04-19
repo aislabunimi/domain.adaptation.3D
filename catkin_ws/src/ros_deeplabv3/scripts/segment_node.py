@@ -7,23 +7,24 @@ from torchvision import models
 import numpy as np
 import os
 from PIL import Image as PILImage
-from PILBridge import PILBridge  # make sure it's in the same folder or properly installed
+from TestScripts.PILBridge import PILBridge  # make sure it's in the same folder or properly installed
 
 class DeepLabSegmenter:
     def __init__(self):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         # Load model
-        self.model = models.segmentation.deeplabv3_resnet50(num_classes=41, aux_loss=True)
+        self.model = models.segmentation.deeplabv3_resnet101(num_classes=41, aux_loss=True)
 
         base_dir = os.path.dirname(os.path.abspath(__file__))
         finetuned_path = os.path.join(base_dir, "..", "models", "deeplabv3.pth")
         if os.path.exists(finetuned_path):
             rospy.loginfo("Loading finetuned model...")
             self.model.load_state_dict(torch.load(finetuned_path, map_location=self.device))
+            rospy.loginfo("Model loaded")
         else:
             rospy.logwarn("Finetuned model not found. Using untrained model! in "+ finetuned_path)
-
+        
         self.model.to(self.device)
         self.model.eval()
 
