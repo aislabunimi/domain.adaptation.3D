@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
+
 import rospy
-from sensor_msgs.msg import Image as SensorImage
+import numpy as np
+import os
+
 import torch
 import torchvision.transforms as T
 from torchvision import models
-import numpy as np
-import os
+
 from PIL import Image as PILImage
-from TestScripts.PILBridge import PILBridge  # make sure it's in the same folder or properly installed
+from Modules import PILBridge
+from sensor_msgs.msg import Image
+
 
 class DeepLabSegmenter:
     def __init__(self):
@@ -18,6 +22,7 @@ class DeepLabSegmenter:
 
         base_dir = os.path.dirname(os.path.abspath(__file__))
         finetuned_path = os.path.join(base_dir, "..", "models", "deeplabv3.pth")
+
         if os.path.exists(finetuned_path):
             rospy.loginfo("Loading finetuned model...")
             self.model.load_state_dict(torch.load(finetuned_path, map_location=self.device))
@@ -35,12 +40,11 @@ class DeepLabSegmenter:
                         std=[0.229, 0.224, 0.225])
         ])
 
-        rospy.Subscriber("/camera/image_raw", SensorImage, self.callback)
-        self.pub = rospy.Publisher("/deeplab/segmented_image", SensorImage, queue_size=1)
+        rospy.Subscriber("/camera/image_raw", Image, self.callback)
+        self.pub = rospy.Publisher("/deeplab/segmented_image", Image, queue_size=1)
 
     def callback(self, msg):
         try:
-            # Convert ROS Image to NumPy using PILBridge
             np_img = PILBridge.rosimg_to_numpy(msg)
 
             if np_img.ndim == 2:  # grayscale
@@ -55,9 +59,7 @@ class DeepLabSegmenter:
                 output = self.model(input_tensor)['out'][0]
                 pred = torch.argmax(output, dim=0).byte().cpu().numpy()
 
-            # Convert predicted mask to color image (simple colormap)
             ros_seg = PILBridge.numpy_to_rosimg(pred.astype(np.uint8), encoding="mono8", frame_id=msg.header.frame_id, stamp=msg.header.stamp)
-
             self.pub.publish(ros_seg)
 
         except Exception as e:

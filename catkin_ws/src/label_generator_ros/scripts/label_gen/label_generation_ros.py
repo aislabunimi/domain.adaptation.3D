@@ -1,4 +1,3 @@
-import numpy as np
 from .voxel_map import VoxelMap
 from .ray_caster import RayCaster
 from .visu3d import Visualizer3D

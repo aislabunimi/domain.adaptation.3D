@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
+
 import rospy
 import os
-import time
-from std_msgs.msg import String
-from ros_deeplabv3.srv import Finetune, FinetuneResponse
 
 import torch
 import torch.nn as nn
@@ -12,11 +10,13 @@ import torch.cuda.amp as amp
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from torchvision.models.segmentation import deeplabv3_resnet101
-from PIL import Image
-import numpy as np
 
-# --- Dataset for ROS Finetuning ---
+from PIL import Image
+from ros_deeplabv3.srv import Finetune, FinetuneResponse
+
+
 class SegmentationDataset(Dataset):
+
     def __init__(self, image_dir, mask_dir, transform=None, target_size=(480, 640)):
         self.image_paths = sorted([os.path.join(image_dir, f) for f in os.listdir(image_dir) if f.endswith(('png','jpg'))])
         self.mask_paths = sorted([os.path.join(mask_dir, f) for f in os.listdir(mask_dir) if f.endswith('png')])
@@ -42,7 +42,6 @@ class SegmentationDataset(Dataset):
         mask = torch.from_numpy(mask).long()
         return image, mask
 
-# --- ROS Finetune Callback ---
 def handle_finetune(req):
     image_dir = req.image_path
     mask_dir = req.label_path
@@ -66,7 +65,7 @@ def handle_finetune(req):
     model = deeplabv3_resnet101(pretrained=False)
     model.classifier[4] = nn.Conv2d(256, 40, kernel_size=1)
     model.aux_classifier[4] = nn.Conv2d(256, 40, kernel_size=1)
-    model.load_state_dict(torch.load("/path/to/original_model.pth"))  # Replace with actual model path
+    model.load_state_dict(torch.load("/path/to/original_model.pth"))  # Da sistemare
     model = model.to("cuda" if torch.cuda.is_available() else "cpu")
 
     criterion = nn.CrossEntropyLoss()
@@ -92,16 +91,22 @@ def handle_finetune(req):
 
         rospy.loginfo(f"[Epoch {epoch+1}] Loss: {total_loss / len(loader):.4f}")
 
-    # Save fine-tuned model
-    torch.save(model.state_dict(), "/path/to/fine_tuned_model.pth")
+    torch.save(model.state_dict(), "/path/to/fine_tuned_model.pth") # Da sistemare
     rospy.loginfo("[Finetune] Fine-tuning complete. Model saved.")
 
     return FinetuneResponse(success=True, message="Fine-tuning completed successfully.")
 
-# --- ROS Node Init ---
+def fake_finetune():
+    return FinetuneResponse(success=True, message="Fine-tuning completed successfully.")
+
+
 def finetune_service_node():
+
     rospy.init_node("deeplab_finetune_service")
-    service = rospy.Service("/deeplab_finetune", Finetune, handle_finetune)
+
+    #service = rospy.Service("/deeplab_finetune", Finetune, handle_finetune)
+    service = rospy.Service("/deeplab_finetune", Finetune, fake_finetune)
+
     rospy.loginfo("[Service] Deeplab finetune service ready.")
     rospy.spin()
 
