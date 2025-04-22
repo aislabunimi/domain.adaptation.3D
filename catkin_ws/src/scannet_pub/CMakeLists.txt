@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(label_generator_ros)
+project(scannet_pub)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
@@ -10,29 +10,7 @@ project(label_generator_ros)
 find_package(catkin REQUIRED COMPONENTS
   rospy
   std_msgs
-  sensor_msgs
-  geometry_msgs
-  cv_bridge
-  message_generation
 )
-
-add_service_files(
-  FILES
-  InitLabelGenerator.srv
-  GenerateLabel.srv
-)
-
-generate_messages(
-  DEPENDENCIES
-  std_msgs
-  sensor_msgs
-  geometry_msgs
-)
-
-catkin_package(
-  CATKIN_DEPENDS message_runtime
-)
-
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -91,7 +69,7 @@ catkin_package(
 ## Generate added messages and services with any dependencies listed here
 # generate_messages(
 #   DEPENDENCIES
-#   geometry_msgs#   sensor_msgs#   std_msgs
+#   std_msgs
 # )
 
 ################################################
@@ -125,8 +103,8 @@ catkin_package(
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
 #  INCLUDE_DIRS include
-#  LIBRARIES label_generator_ros
-#  CATKIN_DEPENDS     cv_bridge geometry_msgs message_generation message_runtime rospy sensor_msgs std_msgs
+#  LIBRARIES img_publisher
+#  CATKIN_DEPENDS rospy std_msgs
 #  DEPENDS system_lib
 )
 
@@ -143,7 +121,7 @@ include_directories(
 
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/label_generator_ros.cpp
+#   src/${PROJECT_NAME}/img_publisher.cpp
 # )
 
 ## Add cmake target dependencies of the library
@@ -154,7 +132,7 @@ include_directories(
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-# add_executable(${PROJECT_NAME}_node src/label_generator_ros_node.cpp)
+# add_executable(${PROJECT_NAME}_node src/img_publisher_node.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -218,7 +196,7 @@ include_directories(
 #############
 
 ## Add gtest based cpp test target and link libraries
-# catkin_add_gtest(${PROJECT_NAME}-test test/test_label_generator_ros.cpp)
+# catkin_add_gtest(${PROJECT_NAME}-test test/test_img_publisher.cpp)
 # if(TARGET ${PROJECT_NAME}-test)
 #   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
 # endif()

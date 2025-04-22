@@ -60,6 +60,7 @@ class DeepLabSegmenter:
                 pred = torch.argmax(output, dim=0).byte().cpu().numpy()
 
             ros_seg = PILBridge.numpy_to_rosimg(pred.astype(np.uint8), encoding="mono8", frame_id=msg.header.frame_id, stamp=msg.header.stamp)
+            ros_seg.header.stamp=msg.header.stamp
             self.pub.publish(ros_seg)
 
         except Exception as e:

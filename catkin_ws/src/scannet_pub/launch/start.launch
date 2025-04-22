@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch>
+  <!-- Node for dl_mock -->
+  <node name="dl_mock" pkg="scannet_pub" type="dl_mock.py" output="screen">
+    <!-- Parameters for the dl_mock node -->
+    <param name="root_scannet" value="/home/michele/Desktop/Colombo/Scannet" />
+    <param name="prob_main" value="2" />
+    <param name="prob_aux" value="0" />
+    <param name="sync_topic" value="/sync_semantic" />
+    <param name="depth_topic" value="/depth_img" />
+    <param name="image_topic" value="/rgb_img" />
+    <param name="seg_topic" value="/semantic_img" />
+    <param name="base_link_frame" value="base_link_gt" />
+    <param name="world_frame" value="world" />
+    <param name="fps" value="1" />
+    <param name="frame_limit" value="-1" />
+    <param name="scannet_scene_dir" value="/home/michele/Desktop/Colombo/Scannet/scans/scene0002_00" />
+    <param name="label_scene_dir" value="/home/michele/Desktop/Colombo/Scannet/scans/scene0002_00/label_nyu40" />
+    <param name="sub_reprojected" value="1" />
+    <param name="aux_labels" value="invalid" />
+  </node>
+</launch>

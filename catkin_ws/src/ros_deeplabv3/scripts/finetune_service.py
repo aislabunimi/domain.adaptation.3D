@@ -114,7 +114,7 @@ def handle_finetune(req):
 
 def finetune_service_node():
     rospy.init_node("deeplab_finetune_service")
-    rospy.Service("/deeplab_finetune", Finetune, handle_finetune)
+    rospy.Service("/deeplab/finetune_model", Finetune, handle_finetune)
     rospy.loginfo("[Service] Deeplab finetune service ready.")
     rospy.spin()
 
