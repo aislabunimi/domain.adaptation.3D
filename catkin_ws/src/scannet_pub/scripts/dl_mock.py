@@ -1,337 +1,271 @@
 #!/usr/bin/env python3
 
+import os
+import time
+from pathlib import Path
+
+import numpy as np
+import imageio.v2 as imageio
+import cv2 as cv
+import torch
+from torch.utils.data import Dataset, DataLoader
+
 import rospy
 import rospkg
-import numpy as np
-import torch
-from torch.utils.data import Dataset
-from torch.utils.data import DataLoader
-
-import os
-from pathlib import Path
-from time import sleep
-import time
-
-import cv2 as cv
-import imageio.v2 as imageio
-import tf_conversions
-import yaml
+from std_msgs.msg import Empty
+from sensor_msgs.msg import CameraInfo
+import geometry_msgs.msg
 import tf2_ros
+import tf_conversions
+
+from kimera_interfacer.msg import SyncSemantic
+from habitat_ros_bridge.msg import Sensors
 
 from Modules import PILBridge
 from label_loader import LabelLoaderAuto
-
-from sensor_msgs.msg import Image
-from sensor_msgs.msg import CameraInfo
-import geometry_msgs.msg
-from kimera_interfacer.msg import SyncSemantic
-from habitat_ros_bridge.msg import Sensors
 
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="numpy")
 warnings.filterwarnings("ignore")
 
+
+
 def txt_to_camera_info(cam_p, img_p):
+    data = np.loadtxt(cam_p)
+    img = imageio.imread(img_p)
 
-  data = np.loadtxt(cam_p)
-  img = imageio.imread(img_p)
-
-  # Parse
-  camera_info_msg = CameraInfo()
-  camera_info_msg.width = img.shape[1]
-  camera_info_msg.height = img.shape[0]
-  camera_info_msg.K = data[:3, :3].reshape(-1).tolist()
-  camera_info_msg.D = [0, 0, 0, 0, 0]
-  camera_info_msg.R = data[:3, :3].reshape(-1).tolist()
-  camera_info_msg.P = data[:3, :4].reshape(-1).tolist()
-  camera_info_msg.distortion_model = "plumb_bob"
-  return camera_info_msg
+    msg = CameraInfo()
+    msg.width = img.shape[1]
+    msg.height = img.shape[0]
+    msg.K = data[:3, :3].reshape(-1).tolist()
+    msg.D = [0, 0, 0, 0, 0]
+    msg.R = data[:3, :3].reshape(-1).tolist()
+    msg.P = data[:3, :4].reshape(-1).tolist()
+    msg.distortion_model = "plumb_bob"
+    return msg
 
 
 def broadcast_camera_pose(H, frames, stamp):
+    br = tf2_ros.TransformBroadcaster()
+    t = geometry_msgs.msg.TransformStamped()
 
-  br = tf2_ros.TransformBroadcaster()
-  t = geometry_msgs.msg.TransformStamped()
+    t.header.stamp = stamp
+    t.header.frame_id = frames[0]
+    t.child_frame_id = frames[1]
+    t.transform.translation.x = H[0, 3]
+    t.transform.translation.y = H[1, 3]
+    t.transform.translation.z = H[2, 3]
+    q = tf_conversions.transformations.quaternion_from_matrix(H)
+    t.transform.rotation.x = q[0]
+    t.transform.rotation.y = q[1]
+    t.transform.rotation.z = q[2]
+    t.transform.rotation.w = q[3]
+    br.sendTransform(t)
 
-  t.header.stamp = stamp
-  t.header.frame_id = frames[0]
-  t.child_frame_id = frames[1]
-  t.transform.translation.x = H[0, 3]
-  t.transform.translation.y = H[1, 3]
-  t.transform.translation.z = H[2, 3]
-  q = tf_conversions.transformations.quaternion_from_matrix(H)
-  t.transform.rotation.x = q[0]
-  t.transform.rotation.y = q[1]
-  t.transform.rotation.z = q[2]
-  t.transform.rotation.w = q[3]
-  br.sendTransform(t)
+
+class RGBDSemanticDataset(Dataset):
+    def __init__(self, aux_flags, label_paths, depth_paths, image_paths, camera_info_img, camera_info_depth, sub_factor):
+        self.aux = aux_flags
+        self.labels = label_paths
+        self.depths = depth_paths
+        self.images = image_paths
+        self.sub_factor = sub_factor
+
+        self.K_img = np.array(camera_info_img.K).reshape(3, 3)
+        self.K_depth = np.array(camera_info_depth.K).reshape(3, 3)
+
+        self.map1, self.map2 = cv.initUndistortRectifyMap(
+            self.K_img, np.zeros(5), np.eye(3), self.K_depth, (640, 480), cv.CV_32FC1
+        )
+
+        self.length = len(self.labels)
+        for i, (l, d) in enumerate(zip(self.labels, self.depths)):
+            if not os.path.isfile(l) or not os.path.isfile(d):
+                self.length = i
+                break
+
+    def __len__(self):
+        return self.length
+
+    def __getitem__(self, idx):
+        label_p, depth_p, image_p, is_aux = self.labels[idx], self.depths[idx], self.images[idx], self.aux[idx]
+
+        depth = imageio.imread(depth_p)
+        mask = np.zeros_like(depth)
+        mask[::self.sub_factor, ::self.sub_factor] = 1
+        depth[mask != 1] = 0
+
+        rgb = imageio.imread(image_p)
+        sem, _ = label_loader_aux.get(label_p) if is_aux else label_loader.get(label_p)
+
+        sem_img = np.zeros((*sem.shape, 3), dtype=np.uint8)
+        for i in range(41):
+            sem_img[sem == i] = color_map[i]
+
+        rgb = cv.remap(rgb, self.map1, self.map2, interpolation=cv.INTER_NEAREST)
+        sem_img = cv.remap(sem_img, self.map1, self.map2, interpolation=cv.INTER_NEAREST)
+
+        pose_id = int(os.path.basename(label_p).split('.')[0])
+        H_cam = np.loadtxt(f"{scene_dir}/pose/{pose_id}.txt")
+
+        return rgb, depth.astype(np.int32), sem_img, H_cam
+
+
+def start_cb(msg):
+    global explore_active
+    explore_active = True
+    rospy.loginfo("Started explore stream")
+
+
+def stop_cb(msg):
+    global explore_active
+    explore_active = False
+    rospy.loginfo("Stopped explore stream")
+
+
+def reset_cb(msg):
+    global reset_requested
+    reset_requested = True
+    rospy.loginfo("Reset explore stream")
 
 
 def dl_mock():
-  rospack = rospkg.RosPack()
-  kimera_interfacer_path = rospack.get_path("kimera_interfacer")
-  label_loader = LabelLoaderAuto(
-    root_scannet=rospy.get_param("~/dl_mock/root_scannet"),
-    confidence=rospy.get_param("~/dl_mock/prob_main"),
-  )
+    global label_loader, label_loader_aux, color_map, scene_dir
+    global streaming, stop_requested, reset_requested, explore_active
+    streaming = False
+    stop_requested = False
+    reset_requested = False
+    explore_active = False
+    rospy.init_node("dl_mock", anonymous=True)
+    rospy.loginfo("Launching dl_mock node...")
 
-  label_loader_aux = LabelLoaderAuto(
-    root_scannet=rospy.get_param("~/dl_mock/root_scannet"),
-    confidence=rospy.get_param("~/dl_mock/prob_aux"),
-  )
+    # Params
+    rospack = rospkg.RosPack()
+    pkg_path = rospack.get_path("kimera_interfacer")
+    fps = rospy.get_param("~/dl_mock/fps", 5)
+    base_link = rospy.get_param("~/dl_mock/base_link_frame")
+    world_frame = rospy.get_param("~/dl_mock/world_frame")
+    scene_dir = rospy.get_param("~/dl_mock/scannet_scene_dir")
+    label_dir = rospy.get_param("~/dl_mock/label_scene_dir")
+    aux_dirs = rospy.get_param("~/dl_mock/aux_labels", [])
+    sub_factor = rospy.get_param("~/dl_mock/sub_reprojected", 4)
+    frame_limit = rospy.get_param("~/dl_mock/frame_limit", -1)
+    sync_topic = rospy.get_param("~/dl_mock/sync_topic", "/sync_semantic")
+
+    # Loaders
+    label_loader = LabelLoaderAuto(rospy.get_param("~/dl_mock/root_scannet"),
+                                   rospy.get_param("~/dl_mock/prob_main"))
+    label_loader_aux = LabelLoaderAuto(rospy.get_param("~/dl_mock/root_scannet"),
+                                       rospy.get_param("~/dl_mock/prob_aux"))
+
+    mapping = np.genfromtxt(f"{pkg_path}/cfg/nyu40_segmentation_mapping.csv", delimiter=",")
+    color_map = mapping[1:, 1:4].astype(np.uint8)
+
+    # Publishers
+    sensor_pub = rospy.Publisher("/habitat/scene/sensors", Sensors, queue_size=1)
+    #sync_pub = rospy.Publisher(sync_topic, SyncSemantic, queue_size=1)
+    #image_cam_pub = rospy.Publisher("rgb_camera_info", CameraInfo, queue_size=1)
+    #depth_cam_pub = rospy.Publisher("depth_camera_info", CameraInfo, queue_size=1)
+
+    # Subscribers
+    rospy.Subscriber("/startexplore", Empty, start_cb)
+    rospy.Subscriber("/stopexplore", Empty, stop_cb)
+    rospy.Subscriber("/resetexplore", Empty, reset_cb)
+
+    # Camera info
+    camera_info_img = txt_to_camera_info(f"{scene_dir}/intrinsic/intrinsic_color.txt", f"{scene_dir}/color/0.jpg")
+    camera_info_depth = txt_to_camera_info(f"{scene_dir}/intrinsic/intrinsic_depth.txt", f"{scene_dir}/color/0.jpg")
+
+    # File lists
+    labels = sorted([str(p) for p in Path(label_dir).rglob("*.png") if "_.png" not in str(p) and int(p.name[:-4]) % 10 == 0])
+    depths = [f"{scene_dir}/depth/{Path(p).name}" for p in labels]
+    images = [f"{scene_dir}/color/{Path(p).stem}.jpg" for p in labels]
+    aux_flags = [False] * len(labels)
+
+    # Add auxiliary labels if present
+    for aux_path in aux_dirs:
+        if os.path.isdir(aux_path):
+            for i, label in enumerate(labels):
+                labels.append(os.path.join(aux_path, os.path.basename(label)))
+                depths.append(depths[i])
+                images.append(images[i])
+                aux_flags.append(True)
+
+    dataset = RGBDSemanticDataset(aux_flags, labels, depths, images, camera_info_img, camera_info_depth, sub_factor)
+    dataloader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=4)
+
+    rate = rospy.Rate(fps)
+    iterator = iter(dataloader)
+    frame_idx = 0
+
+    while not rospy.is_shutdown():
+        if not explore_active:
+            rate.sleep()
+            continue
+
+        if reset_requested:
+            iterator = iter(dataloader)
+            frame_idx = 0
+            reset_requested = False
+            rospy.loginfo("🌀 Resetting data stream...")
+
+        try:
+            rgb, depth, sem_img, H_cam = next(iterator)
+        except StopIteration:
+            rospy.loginfo("✅ Finished streaming all frames.")
+            explore_active = False  # Stop streaming
+            reset_requested = True  # Prepare for restart
+            rospy.loginfo("🔁 Ready to restart stream on /startexplore")
+            continue
+
+        if frame_limit != -1 and frame_idx >= frame_limit:
+            rospy.loginfo("📦 Reached frame limit.")
+            explore_active = False
+            reset_requested = True
+            rospy.loginfo("🔁 Ready to restart stream on /startexplore")
+            continue
+
+        t = rospy.Time.now()
+
+        img_msg = PILBridge.PILBridge.numpy_to_rosimg(rgb[0].numpy(), encoding="rgb8")
+        depth_msg = PILBridge.PILBridge.numpy_to_rosimg(depth[0].numpy().astype(np.uint16), encoding="16UC1")
+        sem_msg = PILBridge.PILBridge.numpy_to_rosimg(sem_img[0].numpy(), encoding="rgb8")
+
+        for msg in (img_msg, depth_msg, sem_msg):
+            msg.header.frame_id = "base_link_gt"
+            msg.header.seq = frame_idx
+            msg.header.stamp = t
+
+        # Uncomment if you want to send semantic sync
+        # sync = SyncSemantic(image=img_msg, depth=depth_msg, sem=sem_msg)
+        pose_flat = H_cam[0].numpy().flatten().tolist()
+
+        sensors = Sensors(
+            rgb=img_msg,
+            depth=depth_msg,
+            pose=pose_flat  
+        )
+
+        # Commenting out TF broadcast since we're embedding the pose now
+        # broadcast_camera_pose(H_cam[0].numpy(), (world_frame, base_link), t)
+
+        sensor_pub.publish(sensors)
+
+        # sync_pub.publish(sync)  # ← Commented out as requested
+        #image_cam_pub.publish(camera_info_img)
+        #depth_cam_pub.publish(camera_info_depth)
+
+        rospy.loginfo(f"[{frame_idx}] 📤 Published frame at {t.to_sec():.2f}")
+        frame_idx += 1
+        rate.sleep()
 
 
-  #depth_topic = rospy.get_param("~/dl_mock/depth_topic")
-  #image_topic = rospy.get_param("~/dl_mock/image_topic")
-  #seg_topic = rospy.get_param("~/dl_mock/seg_topic")
-
-  sync_topic = rospy.get_param("~/dl_mock/sync_topic")
-
-  base_link_frame = rospy.get_param("~/dl_mock/base_link_frame")
-  world_frame = rospy.get_param("~/dl_mock/world_frame")
-
-  scannet_scene_dir = rospy.get_param("~/dl_mock/scannet_scene_dir")
-  label_scene_dir = rospy.get_param("~/dl_mock/label_scene_dir")
-
-  print("Launching dl_mock node...")
-
-  sensor_pub = rospy.Publisher("/habitat/scene/sensors", Sensors, queue_size=1)
-  sync_pub = rospy.Publisher(sync_topic, SyncSemantic, queue_size=1)
-  image_cam_pub = rospy.Publisher("rgb_camera_info", CameraInfo, queue_size=1)
-  depth_cam_pub = rospy.Publisher("depth_camera_info", CameraInfo, queue_size=1)
-
-  rospy.init_node("dl_mock", anonymous=True)
-
-  rate = rospy.Rate(rospy.get_param("~/dl_mock/fps"))
-  image_camera_info_msg = txt_to_camera_info(
-    f"{scannet_scene_dir}/intrinsic/intrinsic_color.txt",
-    f"{scannet_scene_dir}/color/0.jpg",
-  )
-  depth_camera_info_msg = txt_to_camera_info(
-    f"{scannet_scene_dir}/intrinsic/intrinsic_depth.txt",
-    f"{scannet_scene_dir}/color/0.jpg",
-  )
-
-  n = 0
-  seq = 0
-  mapping = np.genfromtxt(f"{kimera_interfacer_path}/cfg/nyu40_segmentation_mapping.csv", delimiter=",")
-  rgb = mapping[1:, 1:4]
-
-  per = 0  # percentage of used depth info
-
-  frame_limit = rospy.get_param("~/dl_mock/frame_limit")
-  sub_reprojected = rospy.get_param("~/dl_mock/sub_reprojected")
-  if frame_limit == -1:
-    frame_limit = float("inf")
-  else:
-    frame_limit = int(frame_limit)
-
-  label_paths = [str(s) for s in Path(label_scene_dir).rglob("*.png")]
-  label_paths = [l for l in label_paths if l.find("_.png") == -1]
-  label_paths = [l for l in label_paths if int(l.split("/")[-1][:-4]) % 10 == 0]
-
-  label_paths.sort(
-    key=lambda x: 1000000 * int(str(x).split("/")[-3][5:9])
-    + 10000 * int(str(x).split("/")[-3][-2:])
-    + int(x.split("/")[-1][:-4])
-  )
-
-  depth_paths = [os.path.join(scannet_scene_dir, "depth", s.split("/")[-1]) for s in label_paths]
-  image_paths = [
-    os.path.join(scannet_scene_dir, "color", s.split("/")[-1][:-4] + ".jpg")
-    for s in label_paths
-  ]
-
-  aux = [False for i in label_paths]
-
-  aux_labels = [rospy.get_param("~/dl_mock/aux_labels")]
-  if len(aux_labels) != 0 and os.path.isdir(aux_labels[0]):
-    new_paths = []
-    new_depths = []
-    new_image_paths = []
-    aux = []
-    for k, p in enumerate(label_paths):
-      aux.append(False)
-      new_paths.append(p)
-      new_depths.append(depth_paths[k])
-      new_image_paths.append(image_paths[k])
-      for j in range(len(aux_labels)):
-        aux.append(True)
-        new_depths.append(depth_paths[k])
-        new_image_paths.append(image_paths[k])
-        new_paths.append(os.path.join(aux_labels[j], p.split("/")[-1]))
-
-    depth_paths = new_depths
-    label_paths = new_paths
-    image_paths = new_image_paths
-
-  integrated = 0
-
-  class Test(Dataset):
-    def __init__(self, aux, label_paths, depth_paths, image_paths, sub_reprojected):
-      self.aux, self.label_paths, self.depth_paths, self.image_paths = (
-        aux,
-        label_paths,
-        depth_paths,
-        image_paths,
-      )
-      self.length = len(self.aux)
-      for j, a in enumerate(zip(label_paths, depth_paths)):
-        l, d = a
-        if not os.path.isfile(d) or not os.path.isfile(l):
-          self.length = j
-      self.map1, self.map2 = cv.initUndistortRectifyMap(
-        np.array(image_camera_info_msg.K).reshape((3, 3)),
-        np.array([0, 0, 0, 0]),
-        np.eye(3),
-        np.array(depth_camera_info_msg.K).reshape((3, 3)),
-        (640, 480),
-        cv.CV_32FC1,
-      )
-      self.sub_reprojected = sub_reprojected
-
-    def __getitem__(self, index):
-
-      aux_flag, label_p, depth_p, image_p = (
-        self.aux[index],
-        self.label_paths[index],
-        self.depth_paths[index],
-        self.image_paths[index],
-      )
-    
-      assert os.path.isfile(depth_p), f"Missing depth file: {depth_p}"
-      assert os.path.isfile(image_p), f"Missing image file: {image_p}"
-      assert os.path.isfile(label_p), f"Missing label file: {label_p}"
-      depth = imageio.imread(depth_p)
-      mask = np.zeros_like(np.array(depth))
-      mask[::sub_reprojected, ::sub_reprojected] = 1
-      depth[mask != 1] = 0
-      
-      img = imageio.imread(image_p)
-      
-      if aux_flag:
-        sem, _ = label_loader_aux.get(label_p)
-      else:
-        sem, _ = label_loader.get(label_p)
-
-      sem_new = np.zeros((sem.shape[0], sem.shape[1], 3))
-      for i in range(0, 41):
-        sem_new[sem == i, :3] = np.copy(rgb[i])
-      sem_new = np.uint8(sem_new)
-
-      # publish camera pose
-      n = int(label_p.split("/")[-1][:-4])
-      H_cam = np.loadtxt(f"{scannet_scene_dir}/pose/{n}.txt")
-
-      H, W = depth.shape[0], depth.shape[1]  # 640, 1280
-
-      # maps from image to depth
-      img = cv.remap(
-        img,
-        self.map1,
-        self.map2,
-        interpolation=cv.INTER_NEAREST,
-        borderMode=cv.BORDER_CONSTANT,
-        borderValue=0,
-      )
-
-      sem_new = cv.remap(
-        sem_new,
-        self.map1,
-        self.map2,
-        interpolation=cv.INTER_NEAREST,
-        borderMode=cv.BORDER_CONSTANT,
-        borderValue=0,
-      )
-
-      return (np.array(img), np.array(depth.astype(np.int32)), np.array(sem_new), H_cam)
-
-    def __len__(self):
-
-      return self.length
-
-  data = Test(
-    aux, label_paths, depth_paths, image_paths, sub_reprojected=sub_reprojected
-  )
-  dataloader = torch.utils.data.DataLoader(data, num_workers=8, shuffle=False, timeout=10)
-  iterator = iter(dataloader)
-  for j, batch in enumerate(dataloader):
-    load_start = time.time()
-    try:
-        batch = next(iterator)
-    except StopIteration:
-        break
-    load_time = time.time() - load_start
-
-    process_start = time.time()
-    if j == len(dataloader) - 1:
-      print("Break because of last frame !")
-      break
-
-    if j > frame_limit:
-      print("Break because of frame limit !")
-      break
-
-    if rospy.is_shutdown():
-      print("Break because rospy shutdown !")
-      break
-
-    print(j, "/", len(dataloader))
-    img, depth, sem_new, H_cam = (
-      batch[0].numpy()[0],
-      batch[1].numpy().astype(np.uint16)[0],
-      batch[2].numpy()[0],
-      batch[3].numpy()[0],
-    )
-
-    t = rospy.Time.now()
-
-    img = PILBridge.PILBridge.numpy_to_rosimg(img, encoding="rgb8")
-    depth = PILBridge.PILBridge.numpy_to_rosimg(depth, encoding="16UC1")
-    sem_new = PILBridge.PILBridge.numpy_to_rosimg(sem_new, encoding="rgb8")
-
-    for msg in (img, depth, sem_new):
-      msg.header.frame_id = "base_link_gt"
-      msg.header.seq = j
-      msg.header.stamp = t
-
-    msg = SyncSemantic()
-    msg.depth = depth
-    msg.image = img
-    msg.sem = sem_new
-
-    broadcast_camera_pose(H_cam, (world_frame, base_link_frame), t)
-
-    # publish current frame
-    sensors_msg = Sensors()
-    sensors_msg.depth = depth
-    sensors_msg.rgb = img
-    sensor_pub.publish(sensors_msg)
-    
-    #depth_pub.publish(depth)
-    #image_pub.publish(img)
-    #sem_pub.publish(sem_new)
-    sync_pub.publish(msg)
-
-    # publish static camera info
-    image_cam_pub.publish(image_camera_info_msg)
-    depth_cam_pub.publish(depth_camera_info_msg)
-
-    process_time = time.time() - process_start
-    total_time = load_time + process_time
-
-    print(f"[{j}] Published frame at {t.to_sec():.2f}")
-    print(f"    Load Time:    {load_time:.3f}s")
-    print(f"    Process Time: {process_time:.3f}s")
-    rate.sleep()
-
-  print("Start Sleeping for 50s \n")
-  time.sleep(50)
-  print("Finished Sleeping for 50s \n")
+    rospy.loginfo("Exploration mock node finished. Sleeping before shutdown.")
+    time.sleep(2)
 
 
 if __name__ == "__main__":
-  try:
-    dl_mock()
-  except rospy.ROSInterruptException:
-    pass
+    try:
+        dl_mock()
+    except rospy.ROSInterruptException:
+        pass
