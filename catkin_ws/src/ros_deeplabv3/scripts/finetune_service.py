@@ -13,7 +13,7 @@ from torchvision import transforms
 from torchvision.models.segmentation import deeplabv3_resnet101
 
 from PIL import Image
-from ros_deeplabv3.srv import Finetune, FinetuneResponse
+from ros_deeplabv3.srv import Finetune,FinetuneResponse
 
 
 class SegmentationDataset(Dataset):
@@ -81,8 +81,10 @@ def train_and_save_model(loader, model_path, num_classes=40, num_epochs=3):
 
 
 def handle_finetune(req):
-    image_dir = req.image_path
-    mask_dir = req.label_path
+    dataset_root = req.dataset_path
+
+    image_dir = os.path.join(dataset_root, "images")
+    mask_dir = os.path.join(dataset_root, "labels")
 
     rospy.loginfo(f"[Finetune] Starting fine-tuning on {image_dir} with labels from {mask_dir}")
 

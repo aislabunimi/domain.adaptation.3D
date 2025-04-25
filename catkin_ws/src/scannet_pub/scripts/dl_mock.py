@@ -29,6 +29,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning, module="numpy")
 warnings.filterwarnings("ignore")
 
 
+explore_active = False
 
 def txt_to_camera_info(cam_p, img_p):
     data = np.loadtxt(cam_p)
@@ -39,7 +40,7 @@ def txt_to_camera_info(cam_p, img_p):
     msg.height = img.shape[0]
     msg.K = data[:3, :3].reshape(-1).tolist()
     msg.D = [0, 0, 0, 0, 0]
-    msg.R = data[:3, :3].reshape(-1).tolist()
+    msg.R = np.eye(3).reshape(-1).tolist()
     msg.P = data[:3, :4].reshape(-1).tolist()
     msg.distortion_model = "plumb_bob"
     return msg
@@ -163,9 +164,8 @@ def dl_mock():
 
     # Publishers
     sensor_pub = rospy.Publisher("/habitat/scene/sensors", Sensors, queue_size=1)
-    #sync_pub = rospy.Publisher(sync_topic, SyncSemantic, queue_size=1)
-    #image_cam_pub = rospy.Publisher("rgb_camera_info", CameraInfo, queue_size=1)
-    #depth_cam_pub = rospy.Publisher("depth_camera_info", CameraInfo, queue_size=1)
+    image_cam_pub = rospy.Publisher("/camera/color/camera_info", CameraInfo, queue_size=1)
+    depth_cam_pub = rospy.Publisher("/camera/depth/camera_info", CameraInfo, queue_size=1)
 
     # Subscribers
     rospy.Subscriber("/startexplore", Empty, start_cb)
@@ -203,6 +203,7 @@ def dl_mock():
             rate.sleep()
             continue
 
+
         if reset_requested:
             iterator = iter(dataloader)
             frame_idx = 0
@@ -213,8 +214,8 @@ def dl_mock():
             rgb, depth, sem_img, H_cam = next(iterator)
         except StopIteration:
             rospy.loginfo("✅ Finished streaming all frames.")
-            explore_active = False  # Stop streaming
-            reset_requested = True  # Prepare for restart
+            explore_active = False
+            reset_requested = True
             rospy.loginfo("🔁 Ready to restart stream on /startexplore")
             continue
 
@@ -227,6 +228,7 @@ def dl_mock():
 
         t = rospy.Time.now()
 
+
         img_msg = PILBridge.PILBridge.numpy_to_rosimg(rgb[0].numpy(), encoding="rgb8")
         depth_msg = PILBridge.PILBridge.numpy_to_rosimg(depth[0].numpy().astype(np.uint16), encoding="16UC1")
         sem_msg = PILBridge.PILBridge.numpy_to_rosimg(sem_img[0].numpy(), encoding="rgb8")
@@ -236,8 +238,15 @@ def dl_mock():
             msg.header.seq = frame_idx
             msg.header.stamp = t
 
-        # Uncomment if you want to send semantic sync
-        # sync = SyncSemantic(image=img_msg, depth=depth_msg, sem=sem_msg)
+        # Publish CameraInfo with timestamp
+        camera_info_img.header.stamp = t
+        camera_info_img.header.frame_id = "base_link_gt"
+        image_cam_pub.publish(camera_info_img)
+
+        camera_info_depth.header.stamp = t
+        camera_info_depth.header.frame_id = "base_link_gt"
+        depth_cam_pub.publish(camera_info_depth)
+
         pose_flat = H_cam[0].numpy().flatten().tolist()
 
         sensors = Sensors(
@@ -246,19 +255,11 @@ def dl_mock():
             pose=pose_flat  
         )
 
-        # Commenting out TF broadcast since we're embedding the pose now
-        # broadcast_camera_pose(H_cam[0].numpy(), (world_frame, base_link), t)
-
         sensor_pub.publish(sensors)
-
-        # sync_pub.publish(sync)  # ← Commented out as requested
-        #image_cam_pub.publish(camera_info_img)
-        #depth_cam_pub.publish(camera_info_depth)
 
         rospy.loginfo(f"[{frame_idx}] 📤 Published frame at {t.to_sec():.2f}")
         frame_idx += 1
         rate.sleep()
-
 
     rospy.loginfo("Exploration mock node finished. Sleeping before shutdown.")
     time.sleep(2)

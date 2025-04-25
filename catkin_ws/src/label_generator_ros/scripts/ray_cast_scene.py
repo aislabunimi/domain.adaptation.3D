@@ -6,6 +6,7 @@ from Modules import PILBridge
 from sensor_msgs.msg import Image
 from label_generator_ros.srv import InitLabelGenerator, InitLabelGeneratorResponse
 from label_generator_ros.srv import GenerateLabel, GenerateLabelResponse
+from label_gen.label_generation_ros import LabelGenerator
 
 class LabelGenNode:
     def __init__(self):
@@ -22,7 +23,7 @@ class LabelGenNode:
     def handle_init(self, req):
         try:
             k_image = np.array(req.k_image).reshape(3, 3)
-            self.label_generator = label_generation_ros.LabelGenerator(
+            self.label_generator = LabelGenerator(
                 image_shape=(req.height, req.width),
                 k_color=k_image,
                 mesh_path=req.mesh_path,
@@ -48,7 +49,7 @@ class LabelGenNode:
             probs = self.label_generator.get_label(pose)
             label = np.argmax(probs[:, :, 1:], axis=-1).astype(np.uint8)
 
-            label_msg = PILBridge.numpy_to_rosimg(label, encoding="mono8")
+            label_msg = PILBridge.PILBridge.numpy_to_rosimg(label, encoding="mono8")
             label_msg.header.stamp = rospy.Time.now()  # Handle timestamp here
 
             return GenerateLabelResponse(

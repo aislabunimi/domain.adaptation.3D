@@ -11,6 +11,7 @@ from torchvision import models
 from PIL import Image as PILImage
 from Modules import PILBridge
 from sensor_msgs.msg import Image
+import cv2
 
 
 class DeepLabSegmenter:
@@ -29,23 +30,24 @@ class DeepLabSegmenter:
             rospy.loginfo("Model loaded")
         else:
             rospy.logwarn("Finetuned model not found. Using untrained model! in "+ finetuned_path)
-        
+
         self.model.to(self.device)
         self.model.eval()
 
-        self.transform = T.Compose([
-            T.Resize((520, 520)),
+        self.base_transform = T.Compose([
             T.ToTensor(),
             T.Normalize(mean=[0.485, 0.456, 0.406],
                         std=[0.229, 0.224, 0.225])
         ])
 
-        rospy.Subscriber("/camera/image_raw", Image, self.callback)
+        rospy.Subscriber('/deeplab/rgb', Image, self.callback)
         self.pub = rospy.Publisher("/deeplab/segmented_image", Image, queue_size=1)
 
     def callback(self, msg):
         try:
-            np_img = PILBridge.rosimg_to_numpy(msg)
+            np_img = PILBridge.PILBridge.rosimg_to_numpy(msg)
+
+            original_h, original_w = np_img.shape[:2]
 
             if np_img.ndim == 2:  # grayscale
                 np_img = np.stack([np_img] * 3, axis=-1)
@@ -53,14 +55,22 @@ class DeepLabSegmenter:
                 np_img = np_img[:, :, :3]  # drop alpha if present
 
             pil_img = PILImage.fromarray(np_img)
-            input_tensor = self.transform(pil_img).unsqueeze(0).to(self.device)
+
+            input_tensor = self.base_transform(pil_img).unsqueeze(0).to(self.device)
 
             with torch.no_grad():
                 output = self.model(input_tensor)['out'][0]
                 pred = torch.argmax(output, dim=0).byte().cpu().numpy()
 
-            ros_seg = PILBridge.numpy_to_rosimg(pred.astype(np.uint8), encoding="mono8", frame_id=msg.header.frame_id, stamp=msg.header.stamp)
-            ros_seg.header.stamp=msg.header.stamp
+            # Resize prediction back to original image size
+            pred_resized = cv2.resize(pred, (original_w, original_h), interpolation=cv2.INTER_NEAREST)
+
+            ros_seg = PILBridge.PILBridge.numpy_to_rosimg(
+                pred_resized.astype(np.uint8),
+                encoding="mono8",
+                frame_id=msg.header.frame_id,
+                stamp=msg.header.stamp
+            )
             self.pub.publish(ros_seg)
 
         except Exception as e:

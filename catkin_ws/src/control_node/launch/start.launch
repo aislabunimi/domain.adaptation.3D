@@ -1,22 +1,23 @@
 <launch>
-    <!-- Habitat Bridge -->
-    <node name="habitat_bridge" pkg="your_package" type="your_node.py" output="screen">
-        <param name="rgb_topic" value="/habitat/rgb"/>
-        <param name="depth_topic" value="/habitat/depth"/>
+
+    <include file="$(find scannet_pub)/launch/start.launch"/>
+    <include file="$(find kimera_interfacer)/launch/labdata.launch"/>
+
+
+    <node name="deeplab_finetune" pkg="ros_deeplabv3" type="finetune_service.py" output="screen">
+    </node>
+
+    <node name="deeplab_segmenter" pkg="ros_deeplabv3" type="segment_node.py" output="screen">
     </node>
     
-    <!-- Exploration Node -->
-    <node pkg="exploration" type="exploration_node" name="exploration" output="screen" />
-    
-    <!-- Kimera Semantics Interface -->
-    <node pkg="kimera_semantics_ros" type="kimera_interface" name="kimera_interface" output="screen" />
-    
-    <!-- DeepLabV3 -->
-    <node pkg="deeplab_ros" type="deeplab_node" name="deeplab" output="screen" />
-    
-    <!-- Control Node -->
-    <node pkg="system_control" type="control_node.py" name="control_node" output="screen" />
-    
-    <!-- Finetuning Node (if separate) -->
-    <node pkg="model_finetuning" type="finetune_node" name="finetune" output="screen" />
+    <node name="label_generator" pkg="label_generator_ros" type="ray_cast_scene.py" output="screen">
+    </node>
+
+    <node name="control_node" pkg="control_node" type="Control.py" output="screen">
+    </node>
+    <!--
+    <node name="kimera_semantics" pkg="kimera_semantics_ros" type="kimera_semantics_node.cpp" output="screen">
+    </node>
+    -->
+
 </launch>
