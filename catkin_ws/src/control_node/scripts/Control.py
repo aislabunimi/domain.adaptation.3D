@@ -3,10 +3,12 @@ import rospy
 import os
 import cv2
 import tf2_ros
+import rospkg
+
 import numpy as np
 import tf_conversions
 from cv_bridge import CvBridge
-from std_msgs.msg import Bool, Empty
+from std_msgs.msg import Bool, Empty, Float64
 from sensor_msgs.msg import Image, PointCloud2
 from geometry_msgs.msg import TransformStamped
 from ros_deeplabv3.srv import Finetune, FinetuneRequest
@@ -17,6 +19,7 @@ from label_generator_ros.srv import GenerateLabel, GenerateLabelRequest, Generat
 from LabelElaborator import LabelElaborator
 from Modules import PILBridge
 from sensor_msgs.msg import CameraInfo
+import matplotlib.pyplot as plt
 
 
 TEMP_DIR = "/home/michele/db"
@@ -26,7 +29,6 @@ os.makedirs(f"{TEMP_DIR}/labels", exist_ok=True)
 class ControlNode:
     def __init__(self):
         rospy.init_node('control_node', anonymous=True)
-        self.label_elaborator = LabelElaborator(confidence=0)
         self.bridge = CvBridge()
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
         self.pose_store = {}  # timestamp: pose
@@ -39,6 +41,27 @@ class ControlNode:
         self.height = None
         self.k_image = None
         self.running = True
+        self.exp_time = 20
+
+        rospack = rospkg.RosPack()
+
+        this_pkg = rospack.get_path("control_node")
+        mapping = np.genfromtxt(
+            f"{this_pkg}/cfg/nyu40_segmentation_mapping.csv", delimiter=","
+        )
+        
+
+        self.class_colors = mapping[1:, 1:4]
+        self.label_elaborator = LabelElaborator(self.class_colors, confidence=0)
+
+
+        # Numero di classi
+        self.num_classes = 40
+        # Variabili per accumulare il calcolo dell'IoU
+        self.intersection = np.zeros(self.num_classes)
+        self.union = np.zeros(self.num_classes)
+        self.count = 0  # Contatore per il numero di immagini processate
+        self.miou = 0.0
 
         self.init_publishers()
         self.init_subscribers()
@@ -52,6 +75,7 @@ class ControlNode:
         self.stopexplore_pub = rospy.Publisher("/stopexplore", Empty, queue_size=1)
         self.resetexplore_pub = rospy.Publisher("/resetexplore", Empty, queue_size=1)
         self.depth_info_pub=rospy.Publisher("/depth_camera_info", CameraInfo, queue_size=1)
+        self.miou_pub=rospy.Publisher("/miou", Float64, queue_size=1 )
 
     def init_subscribers(self):
         scene_topic = rospy.get_param('~scene_topic', '/habitat/scene/sensors')
@@ -156,6 +180,9 @@ class ControlNode:
             semantic.sem = sem_colored_msg
             self.kimera_sync_pub.publish(semantic)
 
+            miou = self.update_miou(PILBridge.PILBridge.rosimg_to_numpy(popmsg.sem), colored_sem)
+            rospy.loginfo("MIOU: " + str(miou))
+
             # Save RGB image
             rgb_cv = PILBridge.PILBridge.rosimg_to_numpy(popmsg.rgb)
             rgb_path = f"{TEMP_DIR}/images/frame_{self.image_id:05d}.png"
@@ -184,6 +211,54 @@ class ControlNode:
                     f.write(" ".join(map(str, row)) + "\n")
         else:
             raise ValueError("pose must be a 4x4 numpy array")
+        
+    def calculate_iou(self, ground_truth_rgb, prediction_rgb):
+        """
+        Calcola l'IoU (Intersection over Union) per una singola coppia di immagini RGB
+        """
+        ground_truth = self.rgb_to_class_index(ground_truth_rgb)
+        prediction = self.rgb_to_class_index(prediction_rgb)
+
+        intersection = np.zeros(self.num_classes)
+        union = np.zeros(self.num_classes)
+
+        for c in range(self.num_classes):
+            gt_mask = (ground_truth == c)
+            pred_mask = (prediction == c)
+
+            intersection[c] = np.sum(np.logical_and(gt_mask, pred_mask))
+            union[c] = np.sum(np.logical_or(gt_mask, pred_mask))
+
+        return intersection, union
+
+    def update_miou(self, ground_truth_rgb, prediction_rgb):
+        """
+        Updates the running mIoU computation with a new image pair.
+        """
+        intersection, union = self.calculate_iou(ground_truth_rgb, prediction_rgb)
+
+        self.intersection += intersection
+        self.union += union
+        self.count += 1
+
+        valid = self.union > 0  # Only consider classes that appear at least once
+        iou_per_class = np.zeros_like(self.intersection)
+        iou_per_class[valid] = self.intersection[valid] / self.union[valid]
+
+        miou = np.mean(iou_per_class[valid]) if np.any(valid) else 0.0
+        self.miou=miou
+
+        return miou
+    
+    def rgb_to_class_index(self, rgb_image, tolerance=5):
+        h, w, _ = rgb_image.shape
+        class_map = np.zeros((h, w), dtype=np.int32)
+
+        for class_idx, color in enumerate(self.class_colors):
+            mask = np.all(np.abs(rgb_image - color) <= tolerance, axis=-1)
+            class_map[mask] = class_idx
+
+        return class_map
 
     def run(self):
         rate = rospy.Rate(1)  # 1 Hz = 1 iteration per second
@@ -197,7 +272,7 @@ class ControlNode:
             start_time = rospy.Time.now()
 
             # Let environment run for 40 seconds
-            rospy.sleep(20.0)
+            rospy.sleep(self.exp_time)
             self.stopexplore_pub.publish(empty_msg)
             rospy.loginfo("Exploration stopping")
 
@@ -263,7 +338,16 @@ class ControlNode:
                 rospy.logerr(f"Service call failed: {e}")
 
             rospy.loginfo("Finetune completed. Starting new cycle.")
+
+            
             rospy.sleep(3.0)
+            self.miou_pub.publish(self.miou)
+
+            # Variabili per accumulare il calcolo dell'IoU
+            self.intersection = np.zeros(self.num_classes)
+            self.union = np.zeros(self.num_classes)
+            self.count = 0  # Contatore per il numero di immagini processate
+            self.miou = 0.0
 
             rate.sleep()
 

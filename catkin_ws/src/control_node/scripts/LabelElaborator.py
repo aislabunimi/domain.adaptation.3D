@@ -1,20 +1,14 @@
 import numpy as np
 import imageio
 import torch
-import rospkg
 
 __all__ = ['LabelElaborator']
 
 class LabelElaborator:
-    def __init__(self, confidence=0):
+    def __init__(self, color_map, confidence=0):
         self._confidence = confidence
         self.max_classes = 40  # Including class 0
-        rospack = rospkg.RosPack()
-        this_pkg = rospack.get_path("control_node")
-        mapping = np.genfromtxt(
-            f"{this_pkg}/cfg/nyu40_segmentation_mapping.csv", delimiter=","
-        )
-        self.rgb = mapping[1:, 1:4]
+        self.rgb = color_map
 
         # Precompute mask for probabilistic bit extraction
         iu16 = np.iinfo(np.uint16)

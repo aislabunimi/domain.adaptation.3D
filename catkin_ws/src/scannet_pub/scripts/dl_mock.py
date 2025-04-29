@@ -252,6 +252,7 @@ def dl_mock():
         sensors = Sensors(
             rgb=img_msg,
             depth=depth_msg,
+            sem=sem_msg,
             pose=pose_flat  
         )
 
