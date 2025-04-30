@@ -35,9 +35,8 @@ class DeepLabSegmenter:
         self.model.eval()
 
         self.base_transform = T.Compose([
-            T.ToTensor(),
-            T.Normalize(mean=[0.485, 0.456, 0.406],
-                        std=[0.229, 0.224, 0.225])
+            T.Resize((240, 320), interpolation=T.InterpolationMode.BILINEAR),
+            T.ToTensor()
         ])
 
         rospy.Subscriber('/deeplab/rgb', Image, self.callback)
@@ -61,7 +60,7 @@ class DeepLabSegmenter:
             with torch.no_grad():
                 output = self.model(input_tensor)['out'][0]
                 pred = torch.argmax(output, dim=0).byte().cpu().numpy()
-
+            torch.cuda.empty_cache()
             # Resize prediction back to original image size
             pred_resized = cv2.resize(pred, (original_w, original_h), interpolation=cv2.INTER_NEAREST)
 
