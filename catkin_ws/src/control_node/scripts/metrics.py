@@ -48,7 +48,7 @@ class SemanticsMeter:
     def measure(self):
         conf_mat = self.conf_mat
         norm_conf_mat = np.transpose(
-            np.transpose(conf_mat) / conf_mat.astype(np.float).sum(axis=1))
+            np.transpose(conf_mat) / conf_mat.astype(np.float64).sum(axis=1))
 
         missing_class_mask = np.isnan(norm_conf_mat.sum(
             1))  # missing class will have NaN at corresponding class
