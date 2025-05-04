@@ -20,11 +20,12 @@ from LabelElaborator import LabelElaborator
 from Modules import PILBridge
 from sensor_msgs.msg import CameraInfo
 import matplotlib.pyplot as plt
-from metrics import Metrics
+from metrics import SemanticsMeter
 
-TEMP_DIR = "/home/michele/db"
-os.makedirs(f"{TEMP_DIR}/images", exist_ok=True)
-os.makedirs(f"{TEMP_DIR}/labels", exist_ok=True)
+TEMP_DIR = "/home/michele/Desktop/Domain-Adaptation-Pipeline/IO_pipeline"
+os.makedirs(f"{TEMP_DIR}/Pipeline/considered_images", exist_ok=True)
+os.makedirs(f"{TEMP_DIR}/Pipeline/rayCasted_labels", exist_ok=True)
+os.makedirs(f"{TEMP_DIR}/Pipeline/poses", exist_ok=True)
 
 class ControlNode:
     def __init__(self):
@@ -35,8 +36,8 @@ class ControlNode:
         self.pending_frames = {}  # timestamp: Sensors msg
 
         self.image_id = 0
-        self.current_mesh = "/home/michele/Desktop/Domain-Adaptation-Pipeline/Output_kimera_mesh/output_predict_mesh.ply"
-        self.map_serialized_path = "/home/michele/Desktop/Domain-Adaptation-Pipeline/Output_kimera_mesh/output_serialized.data"
+        self.current_mesh = f"{TEMP_DIR}/Pipeline/Output_kimera_mesh/output_predict_mesh.ply"
+        self.map_serialized_path = f"{TEMP_DIR}/Pipeline/Output_kimera_mesh/output_serialized.data"
         self.width = None
         self.height = None
         self.k_image = None
@@ -50,14 +51,13 @@ class ControlNode:
             f"{this_pkg}/cfg/nyu40_segmentation_mapping.csv", delimiter=","
         )
         
-
+        # Caricamento del mapping dei colori delle classi segmentate
         self.class_colors = mapping[1:, 1:4]
         self.label_elaborator = LabelElaborator(self.class_colors, confidence=0)
 
-
         # Numero di classi
         self.num_classes = 40
-        self.meter = Metrics(num_classes=self.num_classes)
+        self.meter = SemanticsMeter(number_classes=self.num_classes) # Metriche di valutazione
 
         self.init_publishers()
         self.init_subscribers()
@@ -181,7 +181,7 @@ class ControlNode:
             self.meter.update(pred_idx, gt_idx)
             # Save RGB image
             rgb_cv = PILBridge.PILBridge.rosimg_to_numpy(popmsg.rgb)
-            rgb_path = f"{TEMP_DIR}/images/frame_{self.image_id:05d}.png"
+            rgb_path = f"{TEMP_DIR}/Pipeline/considered_images/frame_{self.image_id:05d}.png"
             cv2.imwrite(rgb_path, rgb_cv)
 
             # Save pose
@@ -194,7 +194,7 @@ class ControlNode:
 
 
     def save_pose(self, idx, pose):
-        pose_path = os.path.join(TEMP_DIR, "poses", f"pose_{idx:05d}.txt")
+        pose_path = os.path.join(TEMP_DIR, "Pipeline/poses", f"pose_{idx:05d}.txt")
 
         pose = np.array(pose).reshape(4, 4)
         
@@ -254,7 +254,7 @@ class ControlNode:
             rospy.sleep(2.0)
             # Label generation for all saved poses
             for i in range(self.image_id):
-                pose_path = os.path.join(TEMP_DIR, "poses", f"pose_{i:05d}.txt")
+                pose_path = os.path.join(TEMP_DIR, "Pipeline/poses", f"pose_{i:05d}.txt")
                 if not os.path.exists(pose_path):
                     continue
 
@@ -270,21 +270,21 @@ class ControlNode:
                 try:
                     result = self.generate_srv(request)
                     if result.success:
-                        label_image = result.label
-                        # You can now do something with the label image
+
+                        # Save casted label
+                        label_cv = PILBridge.PILBridge.rosimg_to_numpy(result.label)
+                        label_path = f"{TEMP_DIR}/Pipeline/rayCasted_labels/label_{i:05d}.png"
+                        cv2.imwrite(label_path, label_cv)
+
                     else:
                         rospy.logerr(f"Label generation failed: {result.error_msg}")
                 except rospy.ServiceException as e:
                     rospy.logerr(f"Service call failed: {e}")
 
-                # Save casted label
-                label_cv = PILBridge.PILBridge.rosimg_to_numpy(result.label)
-                label_path = f"{TEMP_DIR}/labels/label_{i:05d}.png"
-                cv2.imwrite(label_path, label_cv)
 
             rospy.loginfo("Calling finetune service...")
             request = FinetuneRequest()
-            request.dataset_path = "/home/michele/db"
+            request.dataset_path = "/home/michele/Desktop/Domain-Adaptation-Pipeline/IO_pipeline/Pipeline"
             request.num_epochs = 10  # or however many epochs you want
             request.num_classes = 40
             try:

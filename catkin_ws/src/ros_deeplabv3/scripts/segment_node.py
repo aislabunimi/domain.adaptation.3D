@@ -3,7 +3,7 @@
 import rospy
 import numpy as np
 import os
-
+import torchvision
 import torch
 import torchvision.transforms as T
 from torchvision import models
@@ -19,7 +19,15 @@ class DeepLabSegmenter:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         # Load model
-        self.model = models.segmentation.deeplabv3_resnet101(num_classes=41, aux_loss=True)
+        #self.model = models.segmentation.deeplabv3_resnet101(num_classes=41, aux_loss=True)
+
+        self.model = torchvision.models.segmentation.deeplabv3_resnet101(
+            pretrained=False,
+            pretrained_backbone=True,
+            progress=True,
+            num_classes=40,
+            aux_loss=None,
+        )
 
         base_dir = os.path.dirname(os.path.abspath(__file__))
         finetuned_path = os.path.join(base_dir, "..", "models", "deeplabv3.pth")
@@ -33,6 +41,7 @@ class DeepLabSegmenter:
 
         self.model.to(self.device)
         self.model.eval()
+
 
         self.base_transform = T.Compose([
             T.Resize((240, 320), interpolation=T.InterpolationMode.BILINEAR),
@@ -60,6 +69,7 @@ class DeepLabSegmenter:
             with torch.no_grad():
                 output = self.model(input_tensor)['out'][0]
                 pred = torch.argmax(output, dim=0).byte().cpu().numpy()
+                pred += 1
             torch.cuda.empty_cache()
             # Resize prediction back to original image size
             pred_resized = cv2.resize(pred, (original_w, original_h), interpolation=cv2.INTER_NEAREST)

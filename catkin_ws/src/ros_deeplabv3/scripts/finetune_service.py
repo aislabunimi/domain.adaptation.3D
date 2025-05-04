@@ -83,8 +83,8 @@ def train_and_save_model(loader, model_path, num_classes=40, num_epochs=3):
 def handle_finetune(req):
     dataset_root = req.dataset_path
 
-    image_dir = os.path.join(dataset_root, "images")
-    mask_dir = os.path.join(dataset_root, "labels")
+    image_dir = os.path.join(dataset_root, "considered_images")
+    mask_dir = os.path.join(dataset_root, "rayCasted_labels")
 
     rospy.loginfo(f"[Finetune] Starting fine-tuning on {image_dir} with labels from {mask_dir}")
 
