@@ -47,7 +47,7 @@ class LabelGenNode:
         try:
             pose = np.array(req.pose).reshape(4, 4)
             probs = self.label_generator.get_label(pose)
-            label = np.argmax(probs[:, :, 1:], axis=-1).astype(np.uint8)
+            label = np.argmax(probs[:, :, 0:], axis=-1).astype(np.uint8)
 
             label_msg = PILBridge.PILBridge.numpy_to_rosimg(label, encoding="mono8")
             label_msg.header.stamp = rospy.Time.now()  # Handle timestamp here

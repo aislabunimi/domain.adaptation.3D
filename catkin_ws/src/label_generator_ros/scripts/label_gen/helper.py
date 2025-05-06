@@ -31,7 +31,7 @@ def get_rays(k, size, extrinsic, d_min=0.1, d_max=5):
   return start, stop, dir
 
 def transform_points(points, H):
-  return points @ H[:3, :3].T + H[:3, 3]
+  return np.dot(points, H[:3, :3].T) + H[:3, 3]
 
 
 # VOXEL HELPER FUNCTIONS
@@ -48,7 +48,7 @@ def get_linear_from_a_b_c(a, b, c, voxels_per_side):
 
 
 def get_x_y_z(index, origin, voxels_per_side, voxel_size):
-  abc = get_a_b_c_from_linear(index, voxels_per_side)
+  abc = np.array(get_a_b_c_from_linear(index, voxels_per_side))
   print("abc", abc)
   add = np.full((3), voxel_size) * (abc - np.array([16, 16, 16]))
   return origin + add
@@ -62,7 +62,7 @@ def get_semantic_voxel_from_point(point, voxel_size, voxels_per_side):
   grid_size = voxel_size * voxels_per_side
   grid_size_inv = 1 / grid_size
   block_coordinate = get_grid_index_from_point(point, grid_size_inv)
-  point_local = point - block_coordinate * np.fill(grid_size, 3)
+  point_local = point - block_coordinate * np.full(3, grid_size)
   local_coordinate = get_grid_index_from_point(point_local, 1 / voxel_size)
   return block_coordinate, local_coordinate
 

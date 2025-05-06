@@ -13,10 +13,12 @@ from kimera_interfacer.msg import SyncSemantic
 from label_generator_ros.srv import InitLabelGenerator, GenerateLabel, GenerateLabelRequest
 from LabelElaborator import LabelElaborator
 from Modules import PILBridge
+import time
 from metrics import SemanticsMeter
 import tf2_ros
+from tqdm import tqdm
 import imageio.v2 as imageio
-
+from concurrent.futures import ThreadPoolExecutor
 
 
 class MockedControlNode:
@@ -28,6 +30,8 @@ class MockedControlNode:
         self.outmap_pub = rospy.Publisher('/kimera/end_generation_map', Bool, queue_size=1)
         self.depth_info_pub = rospy.Publisher("/depth_camera_info", CameraInfo, queue_size=1)
         self.miou_pub = rospy.Publisher('/miou', Float64, queue_size=1)
+        self.ray_cast_pub = rospy.Publisher('/rayCasted', Image, queue_size=1)
+        self.label_nyu40_pub = rospy.Publisher('/label_nyu40', Image, queue_size=1)
 
         # TF broadcaster
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
@@ -127,7 +131,139 @@ class MockedControlNode:
 
         # Return the aligned images
         return rgb, depth.astype(np.int32), sem_img
+    
+    def kimera_mesh_generator(self):
+        rospy.loginfo("Preloading data...")
+
+        img_files = sorted([f for f in os.listdir(self.image_dir) if f.endswith(".jpg")])
+       
+
+
+        camera_info_depth = self.txt_to_camera_info(os.path.join(self.int_dir, "intrinsic_depth.txt"), f"{self.image_dir}/0.jpg")
+        camera_info_img = self.txt_to_camera_info(os.path.join(self.int_dir, "intrinsic_color.txt"), f"{self.depth_dir}/0.png")
+        map1, map2 = cv2.initUndistortRectifyMap(
+            cameraMatrix=np.array(camera_info_img.K).reshape(3, 3),
+            distCoeffs=np.zeros(5),
+            R=np.eye(3),
+            newCameraMatrix=np.array(camera_info_depth.K).reshape(3, 3),
+            size=(640, 480),
+            m1type=cv2.CV_32FC1
+        )
+
+        rospy.loginfo("Sending RGB-D + Semantics to Kimera...")
+        for frame_idx, f in enumerate(tqdm(img_files, desc="Sending frames to Kimera")):
+            stamp = rospy.Time.now()
+            camera_info_depth.header.stamp = stamp
+            camera_info_depth.header.frame_id = "base_link_gt"
+            self.depth_info_pub.publish(camera_info_depth)
+
+            pose_path = os.path.join(self.pose_dir, f.replace("frame", "pose").replace(".jpg", ".txt"))
+            pose = self.load_pose(pose_path)
+            self.publish_tf(pose, stamp)
+
+            rgb_path = os.path.join(self.image_dir, f)
+            depth_path = os.path.join(self.depth_dir, f.replace("frame", "pose").replace(".jpg", ".png"))
+            sem_path = os.path.join(self.dlab_label_dir, f)
+
+            rgb_image = cv2.cvtColor(cv2.imread(rgb_path), cv2.COLOR_BGR2RGB)
+            depth_image = cv2.imread(depth_path, cv2.IMREAD_UNCHANGED)
+            sem_image = cv2.imread(sem_path, cv2.IMREAD_GRAYSCALE)
+
+            _, colored_sem, _ = self.label_elaborator.process(sem_image)
+            rgb_processed, depth_processed, sem_processed = self.load_all(rgb_image, depth_image, colored_sem, map1, map2, self.sub_factor)
+
+            rgb_msg = PILBridge.PILBridge.numpy_to_rosimg(rgb_processed, encoding="rgb8")
+            depth_msg = PILBridge.PILBridge.numpy_to_rosimg(depth_processed, encoding="16UC1")
+            sem_msg = PILBridge.PILBridge.numpy_to_rosimg(sem_processed, encoding="rgb8")
+
+            for msg in (rgb_msg, depth_msg, sem_msg):
+                msg.header.frame_id = "base_link_gt"
+                msg.header.seq = frame_idx
+                msg.header.stamp = stamp
+
+            semantic = SyncSemantic()
+            semantic.image = rgb_msg
+            semantic.depth = depth_msg
+            semantic.sem = sem_msg
+            self.kimera_pub.publish(semantic)
+
+            gt = cv2.imread(os.path.join(self.gt_label_dir, f.replace("frame", "pose").replace(".jpg", ".png")), cv2.IMREAD_UNCHANGED)
+            self.meter_gt_dlab.update(sem_image, gt)
+            rospy.sleep(0.1)
+
+        
+        rospy.loginfo("Sending end of generation signal...")
+        self.outmap_pub.publish(Bool(data=True))
+
+    def pseudo_label_generator(self):
+        rospy.loginfo("Generating pseudo labels...")
+        h, w = 968,1296
+
+        img_files = sorted([f for f in os.listdir(self.image_dir) if f.endswith(".jpg")])
+
+        camera_info = self.txt_to_camera_info(os.path.join(self.int_dir, "intrinsic_color.txt"), f"{self.depth_dir}/0.png")       
+        self.init_srv(h, w, np.array(camera_info.K), self.mesh_path, self.serialized_path)
+        executor = ThreadPoolExecutor(max_workers=4)
+        update_futures = []
+
+        for i, fname in enumerate(tqdm(img_files, desc="Generating pseudo labels")):
+            pose_path = os.path.join(self.pose_dir, fname.replace("frame", "pose").replace(".jpg", ".txt"))
+            pose = self.load_pose(pose_path)
+
+            request = GenerateLabelRequest()
+            request.pose = pose
+            result = self.generate_srv(request)
+
+            if not result.success:
+                rospy.logerr(f"Label gen failed: {result.error_msg}")
+                continue
+            
+            pseudo = PILBridge.PILBridge.rosimg_to_numpy(result.label)
+            gt_path = os.path.join(self.gt_label_dir, fname.replace("frame", "pose").replace(".jpg", ".png"))
+            gt = cv2.imread(gt_path, cv2.IMREAD_GRAYSCALE)
+            
+            _, colored_gt, _ = self.label_elaborator.process(gt)
+            _, colored_pseudo, _ = self.label_elaborator.process(pseudo)
+
+            colored_gt_msg = PILBridge.PILBridge.numpy_to_rosimg(colored_gt)
+            colored_pseudo_msg = PILBridge.PILBridge.numpy_to_rosimg(colored_pseudo)
+            self.ray_cast_pub.publish(colored_pseudo_msg)
+            self.label_nyu40_pub.publish(colored_gt_msg)
+            
+            update_futures.append(executor.submit(self.meter_gt_pseudo.update, gt, pseudo))
+        for f in update_futures:
+            f.result()
+
+        
+
+
     def run(self):
+        if os.path.exists(self.mesh_path):
+            rospy.logwarn(f"Mesh file '{self.mesh_path}' already exists.")
+            try:
+                answer = input("Mesh already exists. Regenerate? [y/N]: ").strip().lower()
+            except EOFError:
+                rospy.logerr("Cannot ask for user input. Running in non-interactive mode. Skipping mesh regeneration.")
+                answer = "n"
+
+            if answer != "y":
+                rospy.loginfo("Skipping Kimera interfacing...")
+            else:
+                self.kimera_mesh_generator()
+        else:
+            self.kimera_mesh_generator()
+
+        self.pseudo_label_generator()
+        #miou_dlab, acc_dlab, class_acc_dlab = self.meter_gt_dlab.measure()
+        miou_pseudo, acc_pseudo, class_acc_pseudo = self.meter_gt_pseudo.measure()
+
+        #rospy.loginfo(f"[DeepLab] mIoU: {miou_dlab:.3f}, Acc: {acc_dlab:.3f}, ClassAcc: {class_acc_dlab:.3f}")
+        rospy.loginfo(f"[Pseudo]   mIoU: {miou_pseudo:.3f}, Acc: {acc_pseudo:.3f}, ClassAcc: {class_acc_pseudo:.3f}")
+        self.miou_pub.publish(Float64(data=miou_pseudo))
+        with open("/home/michele/Desktop/Domain-Adaptation-Pipeline/IO_pipeline/results.txt", "a") as f:
+            #f.write(f"[DeepLab] mIoU: {miou_dlab:.3f}, Acc: {acc_dlab:.3f}, ClassAcc: {class_acc_dlab:.3f}\n")
+            f.write(f"[Pseudo]   mIoU: {miou_pseudo:.3f}, Acc: {acc_pseudo:.3f}, ClassAcc: {class_acc_pseudo:.3f}\n")
+        '''
         rospy.loginfo("Preloading data...")
 
         img_files = sorted([f for f in os.listdir(self.image_dir) if f.endswith(".jpg")])
@@ -137,7 +273,7 @@ class MockedControlNode:
         h,w = rgb_image_pre.shape[:2]
 
         k_image = [525.0, 0, 319.5, 0, 525.0, 239.5, 0, 0, 1]
-        self.init_srv(h, w, k_image, self.mesh_path, self.serialized_path)
+        
 
         # Preload only camera info (lightweight)
         camera_info_depth = self.txt_to_camera_info(os.path.join(self.int_dir, "intrinsic_depth.txt"), f"{self.image_dir}/0.jpg")
@@ -152,7 +288,9 @@ class MockedControlNode:
         )
         rospy.loginfo("Sending RGB-D + Semantics to Kimera...")
         frame_idx=0
-        for f in img_files:
+        
+        for frame_idx, f in enumerate(tqdm(img_files, desc="Sending frames to Kimera")):
+            
             stamp = rospy.Time.now()
 
             # Update camera_info header
@@ -168,22 +306,24 @@ class MockedControlNode:
             # Load and process RGB, Depth, and Semantic images using load_all
             rgb_path = os.path.join(self.image_dir, f)
             depth_path = os.path.join(self.depth_dir, f.replace("frame", "pose").replace(".jpg", ".png"))
+            
             sem_path = os.path.join(self.dlab_label_dir, f)
-
+            
             # Assuming rgb_image, depth_image, and sem_image are already read images
             rgb_image = cv2.imread(rgb_path)
           
             rgb_image = cv2.cvtColor(rgb_image, cv2.COLOR_BGR2RGB)
 
             depth_image = cv2.imread(depth_path, cv2.IMREAD_UNCHANGED)
-
+            
             sem_image = cv2.imread(sem_path, cv2.IMREAD_GRAYSCALE)
+            
             _, colored_sem, _ = self.label_elaborator.process(sem_image)
             # Use load_all function to process the images
             rgb_processed, depth_processed, sem_processed = self.load_all(rgb_image, depth_image, colored_sem, map1, map2, self.sub_factor)
-
+            
             gt = cv2.imread(os.path.join(self.gt_label_dir, f.replace("frame", "pose").replace(".jpg", ".png")), cv2.IMREAD_UNCHANGED)
-
+            
             # Convert to ROS messages
             rgb_msg = PILBridge.PILBridge.numpy_to_rosimg(rgb_processed, encoding="rgb8")
             depth_msg = PILBridge.PILBridge.numpy_to_rosimg(depth_processed, encoding="16UC1")
@@ -203,20 +343,20 @@ class MockedControlNode:
             semantic.depth = depth_msg
             semantic.sem = sem_msg
             self.kimera_pub.publish(semantic)
+        
             #print(f"[DEBUG] Frame {frame_idx}: RGB shape = {rgb.shape}, Depth shape = {depth.shape}, Sem shape = {colored_sem.shape}")
             # Evaluate prediction
             self.meter_gt_dlab.update(sem_image, gt)
 
-            
-            frame_idx += 1
             rospy.sleep(0.1)
-
-        self.outmap_pub.publish(Bool(data=True))
+        
+        self.init_srv(h, w, k_image, self.mesh_path, self.serialized_path)
+        #self.outmap_pub.publish(Bool(data=True))
         rospy.loginfo("Sending end of generation signal...")
         rospy.loginfo("Generating pseudo labels...")
-
-        for i, fname in enumerate(img_files):
+        for i, fname in enumerate(tqdm(img_files, desc="Generating pseudo labels")):
             pose_path = os.path.join(self.pose_dir, fname.replace("frame", "pose").replace(".jpg", ".txt"))
+            print(pose_path)
             pose = self.load_pose(pose_path)
 
             request = GenerateLabelRequest()
@@ -228,10 +368,17 @@ class MockedControlNode:
                 continue
 
             pseudo = PILBridge.PILBridge.rosimg_to_numpy(result.label)
-            gt = cv2.imread(os.path.join(self.gt_label_dir, fname.replace("frame", "pose").replace(".jpg", ".png")))
+            gt = cv2.imread(os.path.join(self.gt_label_dir, fname.replace("frame", "pose").replace(".jpg", ".png")), cv2.IMREAD_GRAYSCALE)
+            print(os.path.join(self.gt_label_dir, fname.replace("frame", "pose").replace(".jpg", ".png")))
 
             _, colored_gt, _ = self.label_elaborator.process(gt)
             _, colored_pseudo, _ = self.label_elaborator.process(pseudo)
+
+            colored_gt_msg = PILBridge.PILBridge.numpy_to_rosimg(colored_gt)
+            colored_pseudo_msg = PILBridge.PILBridge.numpy_to_rosimg(colored_pseudo)
+            self.ray_cast_pub.publish(colored_pseudo_msg)
+            self.label_nyu40_pub.publish(colored_gt_msg)
+
 
             self.meter_gt_pseudo.update(self.rgb_to_class_index(colored_pseudo), self.rgb_to_class_index(colored_gt))
 
@@ -241,6 +388,10 @@ class MockedControlNode:
         rospy.loginfo(f"[DeepLab] mIoU: {miou_dlab:.3f}, Acc: {acc_dlab:.3f}, ClassAcc: {class_acc_dlab:.3f}")
         rospy.loginfo(f"[Pseudo]   mIoU: {miou_pseudo:.3f}, Acc: {acc_pseudo:.3f}, ClassAcc: {class_acc_pseudo:.3f}")
         self.miou_pub.publish(Float64(data=miou_pseudo))
+        with open("/home/michele/Desktop/Domain-Adaptation-Pipeline/IO_pipeline/results.txt", "a") as f:
+            f.write(f"[DeepLab] mIoU: {miou_dlab:.3f}, Acc: {acc_dlab:.3f}, ClassAcc: {class_acc_dlab:.3f}\n")
+            f.write(f"[Pseudo]   mIoU: {miou_pseudo:.3f}, Acc: {acc_pseudo:.3f}, ClassAcc: {class_acc_pseudo:.3f}\n")
+        '''
 
 
 if __name__ == "__main__":

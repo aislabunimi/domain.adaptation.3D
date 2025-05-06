@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+import threading
 
 from sklearn.metrics import confusion_matrix
 
@@ -14,6 +15,7 @@ class SemanticsMeter:
 
     def __init__(self, number_classes):
         self.conf_mat = None
+        self._lock = threading.Lock()
         self.number_classes = number_classes
 
     def clear(self):
@@ -40,10 +42,12 @@ class SemanticsMeter:
                                             preds,
                                             labels=list(
                                                 range(self.number_classes)))
-        if self.conf_mat is None:
-            self.conf_mat = conf_mat_current
-        else:
-            self.conf_mat += conf_mat_current
+        
+        with self._lock:
+            if self.conf_mat is None:
+                self.conf_mat = conf_mat_current
+            else:
+                self.conf_mat += conf_mat_current
 
     def measure(self):
         conf_mat = self.conf_mat
