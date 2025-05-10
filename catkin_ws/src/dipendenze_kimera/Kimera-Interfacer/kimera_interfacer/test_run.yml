@@ -1,0 +1,14 @@
+generate_maps:
+  certainty_thershold: 0.5         # Certainty thershold when a label is
+                                  # integrated into the map
+fps: 2                           # FPS when creating the map
+voxel_size: 0.05                 # Voxel resolution d_voxel
+label_identifier_out: labels_out # Label output name
+sub_reprojected: 2               # Explained in paper r_sub
+parallel: True                   # Ray tracing multiple maps in parallel
+label_generation:                 # Config used to generate network predictions
+  active: True
+  identifier: create_labels        # Output name
+  confidence: 0                    # Always set to 0
+  scenes:                          # List of scenes to generate
+    - scene0002_00   
