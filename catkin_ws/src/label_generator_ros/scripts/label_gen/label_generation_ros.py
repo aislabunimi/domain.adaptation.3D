@@ -17,7 +17,7 @@ class LabelGenerator:
         """
         self.r_sub = r_sub
         self._voxel_map = VoxelMap(map_serialized_path, image_shape, r_sub)
-        self._ray_caster = RayCaster(mesh_path, k_color, image_shape, r_sub)
+        self._ray_caster = RayCaster(mesh_path, k_color, image_shape, r_sub, 10)
 
         self._visu_active = visu3d
         if visu3d:

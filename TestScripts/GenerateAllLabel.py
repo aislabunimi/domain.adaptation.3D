@@ -21,7 +21,7 @@ def deeplab_labels_callback(msg):
             print(f"[INFO] Ricevuta segmentazione per {filename}")
 
             # Salvataggio dell'immagine segmentata
-            output_dir = "/home/michele/Desktop/Domain-Adaptation-Pipeline/IO_pipeline/Scannet/scans/scene0002_00/deeplab_labels"
+            output_dir = "/home/michele/Desktop/Domain-Adaptation-Pipeline/10_deeplab_labels"
             os.makedirs(output_dir, exist_ok=True)
 
             # Opzionale: converti RGB→BGR se necessario per compatibilità OpenCV
@@ -49,7 +49,7 @@ def main():
 
     rospy.sleep(1.0)  # Aspetta inizializzazione nodi/pubblisher
 
-    for i, fname in enumerate(img_files):
+    for i, fname in enumerate(img_files[:10]):
         img_path = os.path.join(input_dir, fname)
         rgb = cv2.imread(img_path)
 

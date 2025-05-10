@@ -23,6 +23,11 @@ class LabelGenNode:
     def handle_init(self, req):
         try:
             k_image = np.array(req.k_image).reshape(3, 3)
+
+            rospy.loginfo(f"k_image: {req.k_image}")
+            rospy.loginfo(f"image_shape: {(req.height, req.width)}")
+            rospy.loginfo(f"mesh_path: {req.mesh_path}, map_serialized_path: {req.map_serialized_path}")
+
             self.label_generator = LabelGenerator(
                 image_shape=(req.height, req.width),
                 k_color=k_image,

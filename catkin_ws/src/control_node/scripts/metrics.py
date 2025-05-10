@@ -31,8 +31,7 @@ class SemanticsMeter:
         return outputs
 
     def update(self, preds, truths):
-        preds, truths = self.prepare_inputs(
-            preds, truths)  # [B, N, 3] or [B, H, W, 3], range[0, 1]
+        preds, truths = self.prepare_inputs(preds, truths)  # [B, N, 3] or [B, H, W, 3], range[0, 1]
         preds = preds.flatten()
         truths = truths.flatten()
         valid_pix_ids = truths != -1

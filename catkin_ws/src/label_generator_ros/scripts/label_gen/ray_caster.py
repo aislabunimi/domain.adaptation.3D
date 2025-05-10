@@ -3,96 +3,77 @@ import trimesh
 from trimesh.ray.ray_pyembree import RayMeshIntersector
 from .helper import get_rays, transform_points
 import open3d as o3d
-import trimesh
 from tqdm import tqdm
 import rospy
 
-import trimesh
-import numpy as np
-import time
-
 def laplacian_smoothing(mesh, iterations=10, lambda_smooth=0.5):
-    """
-    Esegui il Laplacian smoothing su una mesh 3D.
-    
-    :param mesh: la mesh Trimesh
-    :param iterations: numero di iterazioni di smoothing
-    :param lambda_smooth: peso della levigatura (tra 0 e 1)
-    :return: la mesh lisciata
-    """
-    
-    vertices = mesh.vertices
+    import numpy as np
+    from tqdm import tqdm
+
+    vertices = mesh.vertices.copy()
     faces = mesh.faces
-    
-    # Costruisci una mappa di adiacenza dei vertici
-    vertex_neighbors = {i: set() for i in range(len(vertices))}
+
+    # Build adjacency map (as list of numpy arrays for speed)
+    vertex_neighbors = [set() for _ in range(len(vertices))]
     for face in faces:
-        for i, vi in enumerate(face):
-            for j, vj in enumerate(face):
-                if i != j:
-                    vertex_neighbors[vi].add(vj)
+        for i in range(3):
+            vi = face[i]
+            vj = face[(i + 1) % 3]
+            vk = face[(i + 2) % 3]
+            vertex_neighbors[vi].update([vj, vk])
 
-    # Funzione per il calcolo del nuovo vertice levigato
-    def smooth_vertices(vertices):
-        new_vertices = vertices.copy()
-        for i in range(len(vertices)):
-            neighbors = vertex_neighbors[i]
-            if neighbors:
-                # Calcola la media dei vicini
-                avg_position = np.mean(vertices[list(neighbors)], axis=0)
-                # Applicare la levigatura (Laplaciano)
-                new_vertices[i] = (1 - lambda_smooth) * vertices[i] + lambda_smooth * avg_position
-        return new_vertices
+    # Convert to list of numpy arrays for fast access
+    vertex_neighbors = [np.array(list(neigh)) for neigh in vertex_neighbors]
 
-    # Itera per il numero di iterazioni desiderato
     for _ in tqdm(range(iterations), desc="Smoothing", unit="iteration"):
-        vertices = smooth_vertices(vertices)
+        new_vertices = vertices.copy()
+        for i, neighbors in enumerate(vertex_neighbors):
+            if len(neighbors) == 0:
+                continue
+            avg_pos = np.mean(vertices[neighbors], axis=0)
+            new_vertices[i] = (1 - lambda_smooth) * vertices[i] + lambda_smooth * avg_pos
+        vertices = new_vertices
 
-    # Restituisci la mesh lisciata
-    mesh.vertices = vertices
-    return mesh
+    smoothed_mesh = mesh.copy()
+    smoothed_mesh.vertices = vertices
+    return smoothed_mesh
 
 def preprocess_mesh(mesh):
     mesh.remove_unreferenced_vertices()
-    # Clean up invalid values
     mesh.remove_infinite_values()
     mesh.fix_normals()
     return mesh
 
 
 class RayCaster:
-    def __init__(self, mesh_path, k_image, size, r_sub=4, smoothing_iters=30):
+    def __init__(self, mesh_path, k_image, size, r_sub=4, smoothing_iters=3):
         H, W = size
 
-        # Prepare mesh
-        rospy.loginfo("Starting smoothing")
+        # Load and clean mesh
+        rospy.loginfo("Loading and preprocessing mesh")
         mesh = preprocess_mesh(trimesh.load_mesh(mesh_path))
+
+        # Smoothing
+        rospy.loginfo("Applying Laplacian smoothing")
         mesh = laplacian_smoothing(mesh, iterations=smoothing_iters, lambda_smooth=0.1)
-        # -- Normalizzazione (scala unitaria e centratura) --
 
-        rospy.loginfo("finished")
+        rospy.loginfo("RayCaster initialization completed")
 
-        # Build the ray intersector
+        # Costruisci intersector
         self._rmi = RayMeshIntersector(mesh)
 
-        # Generate camera rays
-        self._start, stop, self._dir = get_rays(
-            k_image, size, extrinsic=None, d_min=0.3, d_max=1.4
-        )
-
+        # Genera raggi della camera
+        self._start, stop, self._dir = get_rays(k_image, size, extrinsic=None, d_min=0.3, d_max=1.4)
         self.r_sub = r_sub
         self._start = self._start[::self.r_sub, ::self.r_sub]
         self._dir = self._dir[::self.r_sub, ::self.r_sub]
 
     def raycast(self, H_cam):
-        # Move Camera Rays
         ray_origins = transform_points(self._start.reshape((-1, 3)), H_cam)
         H_turn = np.eye(4)
         H_turn[:3, :3] = H_cam[:3, :3]
         ray_directions = transform_points(self._dir.reshape((-1, 3)), H_turn)
-        
 
-        # Perform Raytracing
         locations, index_ray, index_tri = self._rmi.intersects_location(
             ray_origins=ray_origins,
             ray_directions=ray_directions,

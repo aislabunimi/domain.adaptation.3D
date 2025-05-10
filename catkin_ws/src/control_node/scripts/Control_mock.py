@@ -200,8 +200,8 @@ class MockedControlNode:
         h, w = 968,1296
 
         img_files = sorted([f for f in os.listdir(self.image_dir) if f.endswith(".jpg")])
+        camera_info = self.txt_to_camera_info(os.path.join(self.int_dir, "intrinsic_color.txt"), f"{self.depth_dir}/0.png")
 
-        camera_info = self.txt_to_camera_info(os.path.join(self.int_dir, "intrinsic_color.txt"), f"{self.depth_dir}/0.png")       
         self.init_srv(h, w, np.array(camera_info.K), self.mesh_path, self.serialized_path)
         executor = ThreadPoolExecutor(max_workers=4)
         update_futures = []
@@ -221,6 +221,7 @@ class MockedControlNode:
             pseudo = PILBridge.PILBridge.rosimg_to_numpy(result.label)
             gt_path = os.path.join(self.gt_label_dir, fname.replace("frame", "pose").replace(".jpg", ".png"))
             gt = cv2.imread(gt_path, cv2.IMREAD_GRAYSCALE)
+            pseudo_resized = cv2.resize(pseudo, (320, 240), interpolation=cv2.INTER_LINEAR)
             
             _, colored_gt, _ = self.label_elaborator.process(gt)
             _, colored_pseudo, _ = self.label_elaborator.process(pseudo)
