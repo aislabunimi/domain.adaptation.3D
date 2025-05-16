@@ -48,16 +48,16 @@ def preprocess_mesh(mesh):
 class RayCaster:
     def __init__(self, mesh_path, k_image, size, r_sub=4, smoothing_iters=3):
         H, W = size
-
+        mesh=trimesh.load_mesh(mesh_path)
         # Load and clean mesh
-        rospy.loginfo("Loading and preprocessing mesh")
-        mesh = preprocess_mesh(trimesh.load_mesh(mesh_path))
+        #rospy.loginfo("Loading and preprocessing mesh")
+        #mesh = preprocess_mesh(trimesh.load_mesh(mesh_path))
 
         # Smoothing
-        rospy.loginfo("Applying Laplacian smoothing")
-        mesh = laplacian_smoothing(mesh, iterations=smoothing_iters, lambda_smooth=0.1)
+        #rospy.loginfo("Applying Laplacian smoothing")
+        #mesh = laplacian_smoothing(mesh, iterations=smoothing_iters, lambda_smooth=0.1)
 
-        rospy.loginfo("RayCaster initialization completed")
+        #rospy.loginfo("RayCaster initialization completed")
 
         # Costruisci intersector
         self._rmi = RayMeshIntersector(mesh)

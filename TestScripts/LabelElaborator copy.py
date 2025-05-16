@@ -7,7 +7,7 @@ __all__ = ['LabelElaborator']
 class LabelElaborator:
     def __init__(self, color_map, confidence=0):
         self._confidence = confidence
-        self.max_classes = 41  # Including class 0
+        self.max_classes = 40  # Including class 0
         self.rgb = color_map
 
         # Precompute mask for probabilistic bit extraction

@@ -1,7 +1,8 @@
 import cv2
+import numpy as np
 
 # Path to your image file
-image_path = '/home/michele/Desktop/Colombo/Scannet/scans/scene0002_00/label_nyu40/1.png'
+image_path = '/media/adaptation/New_volume/Domain_Adaptation_Pipeline/IO_pipeline/Scannet_DB/scans/scene0000_00/deeplab_labels/10.png'
 
 # Read the image
 image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)  # Read the image as is
@@ -19,5 +20,12 @@ if image is not None:
         print("The image is RGB (has 3 channels).")
     else:
         print("Unknown image format.")
+
+    # Compute and print min and max pixel values
+    min_pixel = np.min(image)
+    max_pixel = np.max(image)
+    print(f"Minimum pixel value: {min_pixel}")
+    print(f"Maximum pixel value: {max_pixel}")
+
 else:
     print("Error: Image could not be loaded.")

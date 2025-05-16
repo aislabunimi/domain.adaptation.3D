@@ -1,17 +1,24 @@
 <launch>
+    <arg name="data_root" default="/media/adaptation/New_volume/Domain_Adaptation_Pipeline/IO_pipeline/Scannet_DB/scans/scene0000_00" />
+    <arg name="kimera_int_out_dir" default="/media/adaptation/New_volume/Domain_Adaptation_Pipeline/IO_pipeline/Pipeline/Output_kimera_mesh" />
+
+
     <include file="$(find kimera_interfacer)/launch/labdata.launch" />
 
     <node name="label_generator" pkg="label_generator_ros" type="ray_cast_scene.py" output="screen" />
 
     <node name="mocked_control_node" pkg="control_node" type="Control_mock.py" output="screen">
-        <param name="image_dir" value="/home/michele/Desktop/Domain-Adaptation-Pipeline/IO_pipeline/Scannet/scans/scene0002_00/color" />
-        <param name="depth_dir" value="/home/michele/Desktop/Domain-Adaptation-Pipeline/IO_pipeline/Scannet/scans/scene0002_00/depth" />
-        <param name="gt_label_dir" value="/home/michele/Desktop/Domain-Adaptation-Pipeline/IO_pipeline/Scannet/scans/scene0002_00/label_nyu40" />
-        <param name="dlab_label_dir" value="/home/michele/Desktop/Domain-Adaptation-Pipeline/IO_pipeline/Scannet/scans/scene0002_00/deeplab_labels" />
-        <param name="pose_dir" value="/home/michele/Desktop/Domain-Adaptation-Pipeline/IO_pipeline/Scannet/scans/scene0002_00/pose" />
-        <param name="mesh_path" value="/home/michele/Desktop/Domain-Adaptation-Pipeline/IO_pipeline/Pipeline/Output_kimera_mesh/output_predict_mesh.ply" />
-        <param name="serialized_path" value="/home/michele/Desktop/Domain-Adaptation-Pipeline/IO_pipeline/Pipeline/Output_kimera_mesh/output_serialized.data" />
-        <param name="mapping_file" value="$(find control_node)/cfg/nyu40_segmentation_mapping.csv" />
-        <param name="intrinsic_dir" value="/home/michele/Desktop/Domain-Adaptation-Pipeline/IO_pipeline/Scannet/scans/scene0002_00/intrinsic" />
+        <param name="img_size_h"      value="240" />
+        <param name="img_size_w"      value="320" />
+        <param name="image_dir"       value="$(arg data_root)/color" />
+        <param name="depth_dir"       value="$(arg data_root)/depth" />
+        <param name="gt_label_dir"    value="$(arg data_root)/label_nyu40" />
+        <param name="dlab_label_dir"  value="$(arg data_root)/deeplab_labels" />
+        <param name="pose_dir"        value="$(arg data_root)/pose" />
+        <param name="intrinsic_dir"   value="$(arg data_root)/intrinsic" />
+        <param name="mesh_path"       value="$(arg kimera_int_out_dir)/output_predict_mesh.ply" />
+        <param name="serialized_path" value="$(arg kimera_int_out_dir)/output_serialized.data" />
+        <param name="mapping_file"    value="$(find control_node)/cfg/nyu40_segmentation_mapping.csv" />
     </node>
 </launch>
+

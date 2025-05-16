@@ -3,21 +3,13 @@
     <include file="$(find scannet_pub)/launch/start.launch"/>
     <include file="$(find kimera_interfacer)/launch/labdata.launch"/>
 
-
     <node name="deeplab_finetune" pkg="ros_deeplabv3" type="finetune_service.py" output="screen">
     </node>
-
     <node name="deeplab_segmenter" pkg="ros_deeplabv3" type="segment_node.py" output="screen">
     </node>
-    
     <node name="label_generator" pkg="label_generator_ros" type="ray_cast_scene.py" output="screen">
     </node>
-
     <node name="control_node" pkg="control_node" type="Control.py" output="screen">
     </node>
-    <!--
-    <node name="kimera_semantics" pkg="kimera_semantics_ros" type="kimera_semantics_node.cpp" output="screen">
-    </node>
-    -->
 
 </launch>

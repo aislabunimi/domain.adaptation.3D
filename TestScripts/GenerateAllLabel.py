@@ -2,77 +2,156 @@ import rospy
 from sensor_msgs.msg import Image
 import cv2
 import os
+import argparse
 from PILBridge import PILBridge
+from LabelElaborator import LabelElaborator
+import numpy as np
+from functools import partial
+from tqdm import tqdm
+import time
 
-# Dizionario per tenere traccia dei timestamp e dei nomi dei file
-pending_frames = {}
+class SceneProcessor:
+    def __init__(self, base_path="/media/adaptation/New_volume/Domain_Adaptation_Pipeline"):
+        self.base_path = base_path
+        self.mapping_path = os.path.join(base_path, 
+                                      "domain.adaptation.3D/catkin_ws/src/control_node/cfg/nyu40_segmentation_mapping.csv")
+        self.pending_frames = {}
+        self.current_scene = None
+        self.progress_bar = None
+        self.label_elaborator = None
+        self.deeplab_pub = None
+        
+    def init_ros(self):
+        rospy.init_node("deeplab_sync_node", anonymous=True)
+        self.deeplab_pub = rospy.Publisher('/deeplab/rgb', Image, queue_size=10)
+        mapping = np.genfromtxt(self.mapping_path, delimiter=",")[1:, 1:4]
+        self.label_elaborator = LabelElaborator(mapping, confidence=0)
+        rospy.Subscriber("/deeplab/segmented_image", Image, self.deeplab_labels_callback)
+        time.sleep(1.0)  # Allow publishers/subscribers to initialize
 
-def deeplab_labels_callback(msg):
-    try:
-        # Converti immagine segmentata da ROS a NumPy
-        sem_label = PILBridge.rosimg_to_numpy(msg)
+    def deeplab_labels_callback(self, msg):
+        if self.current_scene is None or self.progress_bar is None:
+            return
 
-        # Recupera timestamp
-        ts = msg.header.stamp.to_sec()
+        try:
+            sem_label = PILBridge.rosimg_to_numpy(msg)
+            ts = msg.header.stamp.to_sec()
 
-        # Associa il timestamp a un filename se presente
-        if ts in pending_frames:
-            filename = pending_frames.pop(ts)
-            print(f"[INFO] Ricevuta segmentazione per {filename}")
+            if ts in self.pending_frames:
+                filename, scene_num = self.pending_frames.pop(ts)
+                scene_str = f"{scene_num:04d}"
+                
+                # Prepare output directories
+                output_paths = {
+                    'labels': os.path.join(self.base_path, 
+                                         f"IO_pipeline/Scannet_DB/scans/scene{scene_str}_00/deeplab_labels"),
+                    'colored': os.path.join(self.base_path,
+                                          f"IO_pipeline/Scannet_DB/scans/scene{scene_str}_00/deeplab_labels_colored")
+                }
 
-            # Salvataggio dell'immagine segmentata
-            output_dir = "/home/michele/Desktop/Domain-Adaptation-Pipeline/10_deeplab_labels"
-            os.makedirs(output_dir, exist_ok=True)
+                for path in output_paths.values():
+                    os.makedirs(path, exist_ok=True)
 
-            # Opzionale: converti RGB→BGR se necessario per compatibilità OpenCV
-            sem_label = cv2.cvtColor(sem_label, cv2.COLOR_RGB2BGR)
+                # Save raw segmentation
+                out_path = os.path.join(output_paths['labels'], os.path.splitext(filename)[0] + ".png")
+                cv2.imwrite(out_path, sem_label)
 
-            out_path = os.path.join(output_dir, filename)
-            cv2.imwrite(out_path, sem_label)
-        else:
-            rospy.logwarn(f"Nessun file associato al timestamp {ts:.6f}")
+                # Process and save colored segmentation
+                _, colored_sem, _ = self.label_elaborator.process(sem_label)
+                colored_sem_bgr = cv2.cvtColor(colored_sem, cv2.COLOR_RGB2BGR)
+                out_path2 = os.path.join(output_paths['colored'], os.path.splitext(filename)[0] + ".png")
+                cv2.imwrite(out_path2, colored_sem_bgr)
 
-    except Exception as e:
-        rospy.logerr(f"Errore nella callback deeplab_labels_callback: {e}")
+                self.progress_bar.update(1)
+
+        except Exception as e:
+            rospy.logerr_once(f"Callback error: {str(e)}")
+
+    def process_scene(self, scene_num):
+        scene_str = f"{scene_num:04d}"
+        self.current_scene = scene_num
+        self.pending_frames = {}  # Clear previous scene's pending frames
+
+        input_dir = os.path.join(self.base_path, 
+                               f"IO_pipeline/Scannet_DB/scans/scene{scene_str}_00/color")
+        
+        if not os.path.exists(input_dir):
+            print(f"⚠️ Input directory not found: {input_dir}")
+            return False
+
+        img_files = sorted([f for f in os.listdir(input_dir) if f.endswith(".jpg")],
+                         key=lambda x: int(x.split('.')[0]))
+        
+        if not img_files:
+            print(f"⚠️ No JPG images found in {input_dir}")
+            return False
+
+        # Initialize progress bar
+        self.progress_bar = tqdm(total=len(img_files), desc=f"Processing scene {scene_str}", unit="img")
+
+        # Process all images
+        for fname in img_files:
+            if rospy.is_shutdown():
+                break
+                
+            img_path = os.path.join(input_dir, fname)
+            img = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
+            
+            if img is None:
+                self.progress_bar.write(f"Warning: Invalid image {fname}")
+                continue
+
+            rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            msg = PILBridge.numpy_to_rosimg(rgb, encoding='rgb8')
+            ts = rospy.Time.now()
+            msg.header.stamp = ts
+            self.pending_frames[ts.to_sec()] = (fname, scene_num)  # Store both filename and scene number
+            self.deeplab_pub.publish(msg)
+            time.sleep(0.05)  # Small throttle to avoid overwhelming the system
+
+        # Wait for remaining callbacks
+        start_time = time.time()
+        while len(self.pending_frames) > 0 and not rospy.is_shutdown():
+            if time.time() - start_time > 30:  # 30 second timeout
+                self.progress_bar.write(f"Timeout waiting for {len(self.pending_frames)} remaining frames")
+                break
+            time.sleep(0.1)
+
+        self.progress_bar.close()
+        return True
 
 def main():
-    rospy.init_node("deeplab_sync_node")
+    parser = argparse.ArgumentParser(description='Process ScanNet scenes')
+    parser.add_argument('--scenes', type=str, required=True,
+                      help='Scene numbers (comma-separated or range, e.g. "1,2,5" or "1-5")')
+    parser.add_argument('--base_path', type=str, default="/media/adaptation/New_volume/Domain_Adaptation_Pipeline",
+                      help='Base path for data directories')
+    args = parser.parse_args()
 
-    # Publisher per le immagini RGB
-    deeplab_pub = rospy.Publisher('/deeplab/rgb', Image, queue_size=10)
+    # Parse scene numbers
+    scene_numbers = []
+    if '-' in args.scenes:
+        start, end = map(int, args.scenes.split('-'))
+        scene_numbers = range(start, end+1)
+    else:
+        scene_numbers = list(map(int, args.scenes.split(',')))
 
-    # Subscriber per i risultati segmentati
-    rospy.Subscriber("/deeplab/segmented_image", Image, deeplab_labels_callback)
+    processor = SceneProcessor(args.base_path)
+    processor.init_ros()
+    
+    for scene_num in scene_numbers:
+        print(f"\n{'='*50}")
+        print(f"Starting processing for scene {scene_num:04d}")
+        print(f"{'='*50}")
+        
+        success = processor.process_scene(scene_num)
+        
+        if not success:
+            print(f"⚠️ Failed to process scene {scene_num:04d}")
+        else:
+            print(f"✅ Successfully processed scene {scene_num:04d}")
 
-    input_dir = "/home/michele/Desktop/Domain-Adaptation-Pipeline/IO_pipeline/Scannet/scans/scene0002_00/color"
-    img_files = sorted([f for f in os.listdir(input_dir) if f.endswith(".jpg")])
-
-    rospy.sleep(1.0)  # Aspetta inizializzazione nodi/pubblisher
-
-    for i, fname in enumerate(img_files[:10]):
-        img_path = os.path.join(input_dir, fname)
-        rgb = cv2.imread(img_path)
-
-        if rgb is None:
-            rospy.logwarn(f"Immagine non trovata o non valida: {img_path}")
-            continue
-
-        # Converte in messaggio ROS
-        msg = PILBridge.numpy_to_rosimg(rgb, encoding='bgr8')
-
-        # Aggiunge timestamp
-        ts = rospy.Time.now()
-        msg.header.stamp = ts
-
-        # Associa timestamp al nome del file
-        pending_frames[ts.to_sec()] = fname
-
-        deeplab_pub.publish(msg)
-        rospy.loginfo(f"Inviata immagine {fname} con timestamp {ts.to_sec():.6f}")
-
-        rospy.sleep(0.2)  # Lascia tempo per elaborazione
-
-    rospy.spin()
+    rospy.signal_shutdown("All scenes processed")
 
 if __name__ == "__main__":
     main()

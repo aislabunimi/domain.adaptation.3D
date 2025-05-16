@@ -1,0 +1,7 @@
+rospy
+numpy
+torch
+torchvision
+Pillow
+pyyaml
+opencv-python

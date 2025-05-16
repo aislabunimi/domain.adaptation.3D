@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
+
 import rospy
 import numpy as np
 from PIL import Image as PILImage
 from sensor_msgs.msg import Image as SensorImage
+import cv2;
 
 class PILBridge:
     @staticmethod
@@ -41,7 +43,10 @@ class PILBridge:
             img_msg.data = array.tobytes()
         elif encoding == "mono8":
             img_msg.step = img_msg.width
-            img_msg.data = array.tobytes()
+            if len(array.shape) == 3 and array.shape[2] == 3:  # RGB image (3 channels)
+                img_msg.data = cv2.cvtColor(array, cv2.COLOR_RGB2GRAY).tobytes()  # Convert to grayscale
+            else:
+                img_msg.data = array.tobytes()  # It's already grayscale, so keep it as is
         elif encoding == "32FC1":
             img_msg.step = img_msg.width * 4
             img_msg.data = array.astype(np.float32).tobytes()
@@ -67,6 +72,9 @@ class PILBridge:
             return np.frombuffer(img_msg.data, dtype=np.uint16).reshape((img_msg.height, img_msg.width))
         elif img_msg.encoding == "32FC1":
             return np.frombuffer(img_msg.data, dtype=np.float32).reshape((img_msg.height, img_msg.width))
+        elif img_msg.encoding == "mono8":
+            # Mono image: raw data in a single channel, directly map it
+            return np.frombuffer(img_msg.data, dtype=np.uint8).reshape((img_msg.height, img_msg.width))
         else:
             # Use PIL for supported encodings
             pil_img = PILImage.frombytes(

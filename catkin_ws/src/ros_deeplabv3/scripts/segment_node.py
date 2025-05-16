@@ -43,10 +43,7 @@ class DeepLabSegmenter:
         self.model.eval()
 
 
-        self.base_transform = T.Compose([
-            T.Resize((240, 320), interpolation=T.InterpolationMode.BILINEAR),
-            T.ToTensor()
-        ])
+    
 
         rospy.Subscriber('/deeplab/rgb', Image, self.callback)
         self.pub = rospy.Publisher("/deeplab/segmented_image", Image, queue_size=1)
@@ -55,27 +52,22 @@ class DeepLabSegmenter:
         try:
             np_img = PILBridge.PILBridge.rosimg_to_numpy(msg)
 
-            original_h, original_w = np_img.shape[:2]
+            img = cv2.resize(np_img, (320,240), interpolation=cv2.INTER_AREA)
+            img = img / 255.0
+            img = (torch.from_numpy(img).type(torch.float32).permute(2, 0, 1)
+              ).unsqueeze(0).to(self.device)  # C H W range 0-1
 
-            if np_img.ndim == 2:  # grayscale
-                np_img = np.stack([np_img] * 3, axis=-1)
-            elif np_img.shape[2] == 4:
-                np_img = np_img[:, :, :3]  # drop alpha if present
-
-            pil_img = PILImage.fromarray(np_img)
-
-            input_tensor = self.base_transform(pil_img).unsqueeze(0).to(self.device)
 
             with torch.no_grad():
-                output = self.model(input_tensor)['out'][0]
+                output = self.model(img)['out'][0]
                 pred = torch.argmax(output, dim=0).byte().cpu().numpy()
                 pred += 1
-            torch.cuda.empty_cache()
+            #torch.cuda.empty_cache()
             # Resize prediction back to original image size
-            pred_resized = cv2.resize(pred, (original_w, original_h), interpolation=cv2.INTER_NEAREST)
-
+            #pred_resized = cv2.resize(pred, (original_w, original_h), interpolation=cv2.INTER_NEAREST)
+            
             ros_seg = PILBridge.PILBridge.numpy_to_rosimg(
-                pred_resized.astype(np.uint8),
+                pred.astype(np.uint8),
                 encoding="mono8",
                 frame_id=msg.header.frame_id,
                 stamp=msg.header.stamp

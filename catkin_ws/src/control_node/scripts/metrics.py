@@ -37,6 +37,7 @@ class SemanticsMeter:
         valid_pix_ids = truths != -1
         preds = preds[valid_pix_ids]
         truths = truths[valid_pix_ids]
+        
         conf_mat_current = confusion_matrix(truths,
                                             preds,
                                             labels=list(
@@ -53,8 +54,7 @@ class SemanticsMeter:
         norm_conf_mat = np.transpose(
             np.transpose(conf_mat) / conf_mat.astype(np.float64).sum(axis=1))
 
-        missing_class_mask = np.isnan(norm_conf_mat.sum(
-            1))  # missing class will have NaN at corresponding class
+        missing_class_mask = np.isnan(norm_conf_mat.sum(1))  # missing class will have NaN at corresponding class
         exsiting_class_mask = ~missing_class_mask
 
         class_average_accuracy = nanmean(np.diagonal(norm_conf_mat))

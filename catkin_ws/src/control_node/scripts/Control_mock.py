@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 import tf_conversions
 from cv_bridge import CvBridge
-from std_msgs.msg import Bool, Float64
+from std_msgs.msg import Bool, Float64, Float32
 from sensor_msgs.msg import Image, CameraInfo
 from geometry_msgs.msg import TransformStamped
 from ros_deeplabv3.srv import FinetuneRequest
@@ -15,16 +15,21 @@ from LabelElaborator import LabelElaborator
 from Modules import PILBridge
 import time
 from metrics import SemanticsMeter
+from collections import Counter
 import tf2_ros
 from tqdm import tqdm
 import imageio.v2 as imageio
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 
+timer = np.float32(0.0)
 
 class MockedControlNode:
+
     def __init__(self):
         rospy.init_node("Control_mock", anonymous=True)
         self.sub_factor=1
+        self.original_image_size=(640,480)
         # Publishers
         self.kimera_pub = rospy.Publisher('/sync_semantic', SyncSemantic, queue_size=10)
         self.outmap_pub = rospy.Publisher('/kimera/end_generation_map', Bool, queue_size=1)
@@ -33,10 +38,14 @@ class MockedControlNode:
         self.ray_cast_pub = rospy.Publisher('/rayCasted', Image, queue_size=1)
         self.label_nyu40_pub = rospy.Publisher('/label_nyu40', Image, queue_size=1)
 
+        # Susbs
+        rospy.Subscriber("/kimera/integration_duration", Float32, self.timer_callback)
+
         # TF broadcaster
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
 
         # Params
+        self.image_size=(rospy.get_param("~img_size_w"),rospy.get_param("~img_size_h"))
         self.image_dir = rospy.get_param("~image_dir")
         self.depth_dir = rospy.get_param("~depth_dir")
         self.gt_label_dir = rospy.get_param("~gt_label_dir")
@@ -58,8 +67,12 @@ class MockedControlNode:
         self.init_srv = rospy.ServiceProxy('/label_generator/init', InitLabelGenerator)
         self.generate_srv = rospy.ServiceProxy('/label_generator/generate', GenerateLabel)
 
+    def timer_callback(self, msg):
+        global timer
+        timer = np.float32(msg.data)
 
     def publish_tf(self, pose, stamp):
+       
         if len(pose) == 16:
             pose_matrix = np.array(pose).reshape(4, 4)
             t = TransformStamped()
@@ -77,24 +90,7 @@ class MockedControlNode:
             self.tf_broadcaster.sendTransform(t)
         else:
             rospy.logwarn("Pose does not have 16 elements. Unable to publish transform.")
-
-    def load_pose(self, path):
-        with open(path, 'r') as f:
-            return list(map(float, f.read().split()))
-
-    def txt_to_camera_info(self, cam_p, img_p):
-        data = np.loadtxt(cam_p)
-        img = imageio.imread(img_p)
-        msg = CameraInfo()
-        msg.width = img.shape[1]
-        msg.height = img.shape[0]
-        msg.K = data[:3, :3].reshape(-1).tolist()
-        msg.D = [0, 0, 0, 0, 0]
-        msg.R = np.eye(3).reshape(-1).tolist()
-        msg.P = data[:3, :4].reshape(-1).tolist()
-        msg.distortion_model = "plumb_bob"
-        return msg
-
+    
     def rgb_to_class_index(self, rgb_image, tolerance=5):
         h, w = rgb_image.shape[:2]
         class_map = np.zeros((h, w), dtype=np.int32)
@@ -132,49 +128,273 @@ class MockedControlNode:
         # Return the aligned images
         return rgb, depth.astype(np.int32), sem_img
     
-    def kimera_mesh_generator(self):
-        rospy.loginfo("Preloading data...")
+    def load_pose(self, path):
+        with open(path, 'r') as f:
+            return list(map(float, f.read().split()))
 
-        img_files = sorted([f for f in os.listdir(self.image_dir) if f.endswith(".jpg")])
-       
+    def txt_to_camera_info(self, cam_p, img_p, target_width, target_height):
+        data = np.loadtxt(cam_p)
+        img = imageio.imread(img_p)
+        original_height, original_width = img.shape[:2]
+
+        # Compute scale factors
+        scale_x = target_width / original_width
+        scale_y = target_height / original_height
+
+        # Scale intrinsics
+        K = data[:3, :3].copy()
+        K[0, 0] *= scale_x  # fx
+        K[1, 1] *= scale_y  # fy
+        K[0, 2] *= scale_x  # cx
+        K[1, 2] *= scale_y  # cy
+
+         # Scale intrinsics
+        P = data[:3, :4].copy()
+        P[0, 0] *= scale_x  # fx
+        P[1, 1] *= scale_y  # fy
+        P[0, 2] *= scale_x  # cx
+        P[1, 2] *= scale_y  # cy
+
+        # Create and fill CameraInfo message
+        msg = CameraInfo()
+        msg.width = target_width
+        msg.height = target_height
+        msg.K = K.reshape(-1).tolist()
+        msg.D = [0, 0, 0, 0, 0]
+        msg.R = np.eye(3).reshape(-1).tolist()
+        msg.P = P.reshape(-1).tolist()
+        msg.distortion_model = "plumb_bob"
+
+        return msg
+    
+    def load_data(self, f, width, height, map1_rgb, map2_rgb, map1_depth, map2_depth):
+        # Build full paths
+        rgb_path = os.path.join(self.image_dir, f)
+        depth_path = os.path.join(self.depth_dir, f.replace("frame", "pose").replace(".jpg", ".png"))
+        sem_path = os.path.join(self.dlab_label_dir, f.replace(".jpg", ".png"))
+        gt_path = os.path.join(self.gt_label_dir, f.replace("frame", "pose").replace(".jpg", ".png"))
+
+        # Load images
+        rgb_image = cv2.cvtColor(cv2.imread(rgb_path), cv2.COLOR_BGR2RGB)
+        depth_image = cv2.imread(depth_path, cv2.IMREAD_UNCHANGED)
+        sem_image = cv2.imread(sem_path, cv2.IMREAD_GRAYSCALE)
+        gt_image = cv2.imread(gt_path, cv2.IMREAD_UNCHANGED)
+
+        # Remap images directly to target (width, height)
+        rgb_image = cv2.remap(rgb_image, map1_rgb, map2_rgb, interpolation=cv2.INTER_LINEAR)
+        #sem_image = cv2.remap(sem_image, map1_rgb, map2_rgb, interpolation=cv2.INTER_NEAREST) ????
+        depth_image = cv2.remap(depth_image, map1_depth, map2_depth, interpolation=cv2.INTER_NEAREST)
+        gt_image = cv2.resize(gt_image, (width, height), interpolation=cv2.INTER_NEAREST)  # Resize if needed
+
+        # Generate colored semantic
+        _, colored_sem, _ = self.label_elaborator.process(sem_image)
+
+        return rgb_image, depth_image, sem_image, colored_sem, gt_image
+        
+    def getmaps(self,target_width,target_height):
+
+        """
+        Computes undistort-rectify maps and scaled intrinsics for both RGB and Depth cameras.
+        Returns:
+            map1_rgb, map2_rgb: Remapping maps for RGB/semantic images
+            map1_depth, map2_depth: Remapping maps for depth images
+            K_rgb_scaled: Scaled intrinsic matrix for RGB
+            K_depth_scaled: Scaled intrinsic matrix for Depth
+        """
+        # Load original intrinsics
+        K_rgb = np.loadtxt(os.path.join(self.int_dir, "intrinsic_color.txt"))[:3, :3]
+        K_depth = np.loadtxt(os.path.join(self.int_dir, "intrinsic_depth.txt"))[:3, :3]
+
+        # Define original resolutions
+        orig_rgb_size = (1296, 968)
+        orig_depth_size = (640, 480)
 
 
-        camera_info_depth = self.txt_to_camera_info(os.path.join(self.int_dir, "intrinsic_depth.txt"), f"{self.image_dir}/0.jpg")
-        camera_info_img = self.txt_to_camera_info(os.path.join(self.int_dir, "intrinsic_color.txt"), f"{self.depth_dir}/0.png")
-        map1, map2 = cv2.initUndistortRectifyMap(
-            cameraMatrix=np.array(camera_info_img.K).reshape(3, 3),
+        # --- Scale intrinsics ---
+        def scale_K(K, orig_size, target_size):
+            scale_x = target_size[0] / orig_size[0]
+            scale_y = target_size[1] / orig_size[1]
+            K_scaled = K.copy()
+            K_scaled[0, 0] *= scale_x  # fx
+            K_scaled[1, 1] *= scale_y  # fy
+            K_scaled[0, 2] *= scale_x  # cx
+            K_scaled[1, 2] *= scale_y  # cy
+            return K_scaled
+
+        K_rgb_scaled = scale_K(K_rgb, orig_rgb_size, self.image_size)
+        K_depth_scaled = scale_K(K_depth, orig_depth_size, self.image_size)
+
+        # --- Compute rectification maps ---
+        map1_rgb, map2_rgb = cv2.initUndistortRectifyMap(
+            cameraMatrix=K_rgb,
             distCoeffs=np.zeros(5),
             R=np.eye(3),
-            newCameraMatrix=np.array(camera_info_depth.K).reshape(3, 3),
-            size=(640, 480),
+            newCameraMatrix=K_rgb_scaled,
+            size=self.image_size,
             m1type=cv2.CV_32FC1
         )
 
+        map1_depth, map2_depth = cv2.initUndistortRectifyMap(
+            cameraMatrix=K_depth,
+            distCoeffs=np.zeros(5),
+            R=np.eye(3),
+            newCameraMatrix=K_depth_scaled,
+            size=self.image_size,
+            m1type=cv2.CV_32FC1
+        )
+
+        return map1_rgb, map2_rgb, map1_depth, map2_depth
+    
+    def miou_deeplab_gt(self):
+
+        img_files = sorted([f for f in os.listdir(self.image_dir) if f.endswith(".jpg")],
+                   key=lambda x: int(x.split('.')[0]))
+        
+        num_files = int(len(img_files) * 0.8) # 80%
+        
+        for frame_idx, f in enumerate(tqdm(img_files[:num_files], desc="Rerading frames for evaluation")):
+            stamp = rospy.Time.now()
+            
+            sem_path = os.path.join(self.dlab_label_dir, f.replace("frame", "pose").replace(".jpg", ".png"))
+            gt_path = os.path.join(self.gt_label_dir, f.replace("frame", "pose").replace(".jpg", ".png"))
+           
+            # Load images
+            sem_image = cv2.imread(sem_path, cv2.IMREAD_GRAYSCALE)
+            gt_image = cv2.imread(gt_path, cv2.IMREAD_UNCHANGED)
+            gt_image = cv2.resize(gt_image, (320, 240), interpolation=cv2.INTER_NEAREST)
+            if sem_image is None:
+                print(f"[WARNING] Could not read semantic image: {sem_path}")
+                continue
+            if gt_image is None:
+                print(f"[WARNING] Could not read ground truth image: {gt_path}")
+                continue
+            
+            gt_image = gt_image.astype(np.int16) - 1
+            sem_image = sem_image.astype(np.int16) - 1
+            #print(f"[DEBUG] Frame {f}: Unique preds = {np.unique(sem_image)}, Unique GT = {np.unique(gt_image)}")
+            if (gt_image == -1).all():
+                # all elements are -1, so skip processing
+                continue
+            self.meter_gt_dlab.update(sem_image, gt_image)
+    
+    def calculate_metrics(self,pred_dir, gt_dir, meter, resize_to=(320, 240), file_ext=".png"):
+        """
+        Calculates mIoU, pixel accuracy, and per-class accuracy between prediction and ground truth labels.
+
+        Args:
+            pred_dir (str): Directory with predicted label images.
+            gt_dir (str): Directory with ground truth label images.
+            meter (object): Metric meter with .reset(), .update(pred, gt), and .measure() -> (miou, acc, class_acc).
+            resize_to (tuple): Target image size (width, height).
+            file_ext (str): Extension of label images (e.g., '.png').
+
+        Returns:
+            tuple: (miou: float, accuracy: float, per_class_accuracy: np.ndarray)
+        """
+        
+        pred_files = sorted(
+            [f for f in os.listdir(pred_dir) if f.endswith(file_ext)],
+            key=lambda x: int(x.split('.')[0])
+        )
+        missing_classes_counter = Counter()
+        missing_class_counts = []
+        meter.clear()  # Clear previous state
+        num_files = int(len(pred_files) * 0.8)
+        for f in tqdm(pred_files[:num_files], desc="Evaluating metrics"):
+            pred_path = os.path.join(pred_dir, f)
+            gt_path = os.path.join(gt_dir, f)
+
+            pred_img = cv2.imread(pred_path, cv2.IMREAD_UNCHANGED)
+            gt_img = cv2.imread(gt_path, cv2.IMREAD_UNCHANGED)
+
+            if pred_img is None:
+                print(f"[WARNING] Could not read prediction image: {pred_path}")
+                continue
+            if gt_img is None:
+                print(f"[WARNING] Could not read ground truth image: {gt_path}")
+                continue
+
+            
+
+            # Resize prediction if needed
+            if pred_img.shape[:2] != resize_to[::-1]:
+                #print(f"[INFO] Resizing prediction {f} from {pred_img.shape[::-1]} to {resize_to}")
+                pred_img = cv2.resize(pred_img, resize_to, interpolation=cv2.INTER_NEAREST)
+
+            # Resize ground truth if needed
+            if gt_img.shape[:2] != resize_to[::-1]:
+                #print(f"[INFO] Resizing ground truth {f} from {gt_img.shape[::-1]} to {resize_to}")
+                gt_img = cv2.resize(gt_img, resize_to, interpolation=cv2.INTER_NEAREST)
+
+            # Convert to int and shift class IDs if needed
+            if len(pred_img.shape) == 3 and pred_img.shape[2] == 3:
+                # Image is color (likely RGB), so convert to class index
+                pred_img = cv2.cvtColor(pred_img, cv2.COLOR_BGR2RGB)
+                pred_img = self.rgb_to_class_index(pred_img)
+            else:
+                # Image is grayscale or single channel, skip or handle differently if needed
+                rospy.logwarn_once("Prediction image is grayscale, skipping rgb_to_class_index conversion.")
+            pred_img = pred_img.astype(np.int16) - 1
+            gt_img = gt_img.astype(np.int16) - 1
+
+            # region Debug
+            gt_classes = set(np.unique(gt_img)) - {-1}
+            pred_classes = set(np.unique(pred_img)) - {-1}
+            missing_classes = gt_classes - pred_classes
+            missing_class_counts.append(len(missing_classes))
+            missing_classes_counter.update(missing_classes)
+
+            # endregion
+
+            if np.all(gt_img == -1) or np.all(pred_img == -1):
+                rospy.logwarn(f"Skipping {f} because prediction or GT is fully void.")
+                continue
+            
+            meter.update(pred_img, gt_img)
+
+        # region Debug
+        print("\n[STATISTICS] Missing Class Analysis:")
+        print(f"- Median number of missing classes per image: {np.median(missing_class_counts):.1f}")
+        total_images = len(missing_class_counts)
+        for cls, count in sorted(missing_classes_counter.items()):
+            pct = 100.0 * count / total_images
+            print(f"  - Class {cls}: missed in {count} images ({pct:.1f}%)")
+        # endregion
+        
+        miou, acc, class_acc = meter.measure()
+        return miou, acc, class_acc    
+    
+    def kimera_mesh_generator(self):
+
+        rospy.loginfo("Preloading data for mesh generation...")
+
+        img_files = sorted([f for f in os.listdir(self.image_dir) if f.endswith(".jpg")],
+                   key=lambda x: int(x.split('.')[0]))
+       
+        camera_info_depth = self.txt_to_camera_info(os.path.join(self.int_dir, "intrinsic_depth.txt"), f"{self.depth_dir}/0.png", *self.image_size)
+        map1_rgb, map2_rgb, map1_depth, map2_depth=self.getmaps(*self.image_size)
+
         rospy.loginfo("Sending RGB-D + Semantics to Kimera...")
         for frame_idx, f in enumerate(tqdm(img_files, desc="Sending frames to Kimera")):
+            
             stamp = rospy.Time.now()
+            
             camera_info_depth.header.stamp = stamp
             camera_info_depth.header.frame_id = "base_link_gt"
             self.depth_info_pub.publish(camera_info_depth)
 
             pose_path = os.path.join(self.pose_dir, f.replace("frame", "pose").replace(".jpg", ".txt"))
             pose = self.load_pose(pose_path)
+            if np.any(np.isinf(pose)):
+                rospy.logwarn("Pose contains infinite values, skipping this pose: %s", pose_path)
+                continue
+            
             self.publish_tf(pose, stamp)
 
-            rgb_path = os.path.join(self.image_dir, f)
-            depth_path = os.path.join(self.depth_dir, f.replace("frame", "pose").replace(".jpg", ".png"))
-            sem_path = os.path.join(self.dlab_label_dir, f)
-
-            rgb_image = cv2.cvtColor(cv2.imread(rgb_path), cv2.COLOR_BGR2RGB)
-            depth_image = cv2.imread(depth_path, cv2.IMREAD_UNCHANGED)
-            sem_image = cv2.imread(sem_path, cv2.IMREAD_GRAYSCALE)
-
-            _, colored_sem, _ = self.label_elaborator.process(sem_image)
-            rgb_processed, depth_processed, sem_processed = self.load_all(rgb_image, depth_image, colored_sem, map1, map2, self.sub_factor)
-
+            rgb_processed,depth_processed,sem_processed,sem_color_processed, gt_processed=self.load_data(f,*self.image_size, map1_rgb, map2_rgb, map1_depth, map2_depth)
             rgb_msg = PILBridge.PILBridge.numpy_to_rosimg(rgb_processed, encoding="rgb8")
             depth_msg = PILBridge.PILBridge.numpy_to_rosimg(depth_processed, encoding="16UC1")
-            sem_msg = PILBridge.PILBridge.numpy_to_rosimg(sem_processed, encoding="rgb8")
+            sem_msg = PILBridge.PILBridge.numpy_to_rosimg(sem_color_processed, encoding="rgb8")
 
             for msg in (rgb_msg, depth_msg, sem_msg):
                 msg.header.frame_id = "base_link_gt"
@@ -186,34 +406,45 @@ class MockedControlNode:
             semantic.depth = depth_msg
             semantic.sem = sem_msg
             self.kimera_pub.publish(semantic)
+            sem_processed = sem_processed.astype(np.int16) - 1
+            gt_processed = gt_processed.astype(np.int16) - 1
 
-            gt = cv2.imread(os.path.join(self.gt_label_dir, f.replace("frame", "pose").replace(".jpg", ".png")), cv2.IMREAD_UNCHANGED)
-            self.meter_gt_dlab.update(sem_image, gt)
-            rospy.sleep(0.1)
+            self.meter_gt_dlab.update(sem_processed, gt_processed)
+            rospy.sleep(0.7)
 
-        
+        rospy.sleep(10)
+
         rospy.loginfo("Sending end of generation signal...")
         self.outmap_pub.publish(Bool(data=True))
+        rospy.sleep(120)
 
     def pseudo_label_generator(self):
-        rospy.loginfo("Generating pseudo labels...")
-        h, w = 968,1296
 
-        img_files = sorted([f for f in os.listdir(self.image_dir) if f.endswith(".jpg")])
-        camera_info = self.txt_to_camera_info(os.path.join(self.int_dir, "intrinsic_color.txt"), f"{self.depth_dir}/0.png")
+        rospy.loginfo("Generating pseudo labels with ray tracing...")
+
+        w,h = self.image_size
+
+        img_files = sorted([f for f in os.listdir(self.image_dir) if f.endswith(".jpg")],
+                   key=lambda x: int(x.split('.')[0]))
+        
+        camera_info = self.txt_to_camera_info(os.path.join(self.int_dir, "intrinsic_color.txt"), f"{self.image_dir}/0.jpg",w,h)
 
         self.init_srv(h, w, np.array(camera_info.K), self.mesh_path, self.serialized_path)
-        executor = ThreadPoolExecutor(max_workers=4)
-        update_futures = []
+
+
+        num_files = int(len(img_files) * 0.8)
 
         for i, fname in enumerate(tqdm(img_files, desc="Generating pseudo labels")):
+
             pose_path = os.path.join(self.pose_dir, fname.replace("frame", "pose").replace(".jpg", ".txt"))
             pose = self.load_pose(pose_path)
+            if np.any(np.isinf(pose)):
+                rospy.logwarn("Pose contains infinite values, skipping this pose: %s", pose_path)
+                continue
 
             request = GenerateLabelRequest()
             request.pose = pose
             result = self.generate_srv(request)
-
             if not result.success:
                 rospy.logerr(f"Label gen failed: {result.error_msg}")
                 continue
@@ -221,24 +452,25 @@ class MockedControlNode:
             pseudo = PILBridge.PILBridge.rosimg_to_numpy(result.label)
             gt_path = os.path.join(self.gt_label_dir, fname.replace("frame", "pose").replace(".jpg", ".png"))
             gt = cv2.imread(gt_path, cv2.IMREAD_GRAYSCALE)
-            pseudo_resized = cv2.resize(pseudo, (320, 240), interpolation=cv2.INTER_LINEAR)
+            gt = cv2.resize(gt, (w, h), interpolation=cv2.INTER_NEAREST)
             
             _, colored_gt, _ = self.label_elaborator.process(gt)
             _, colored_pseudo, _ = self.label_elaborator.process(pseudo)
-
+            output_dir = "/media/adaptation/New_volume/Domain_Adaptation_Pipeline/IO_pipeline/PseudoLabels"
+            output_filename = fname.replace(".jpg", ".png")  # or another name if needed
+            output_path = os.path.join(output_dir, output_filename)
+            colored_pseudo_bgr = cv2.cvtColor(colored_pseudo, cv2.COLOR_RGB2BGR)
+            cv2.imwrite(output_path, colored_pseudo_bgr)
             colored_gt_msg = PILBridge.PILBridge.numpy_to_rosimg(colored_gt)
             colored_pseudo_msg = PILBridge.PILBridge.numpy_to_rosimg(colored_pseudo)
             self.ray_cast_pub.publish(colored_pseudo_msg)
             self.label_nyu40_pub.publish(colored_gt_msg)
             
-            update_futures.append(executor.submit(self.meter_gt_pseudo.update, gt, pseudo))
-        for f in update_futures:
-            f.result()
-
-        
-
+            self.meter_gt_pseudo.update(gt, pseudo)
+     
 
     def run(self):
+        # Step 1: Handle mesh
         if os.path.exists(self.mesh_path):
             rospy.logwarn(f"Mesh file '{self.mesh_path}' already exists.")
             try:
@@ -247,154 +479,64 @@ class MockedControlNode:
                 rospy.logerr("Cannot ask for user input. Running in non-interactive mode. Skipping mesh regeneration.")
                 answer = "n"
 
-            if answer != "y":
-                rospy.loginfo("Skipping Kimera interfacing...")
-            else:
+            if answer == "y":
                 self.kimera_mesh_generator()
+            else:
+                rospy.loginfo("Skipping Kimera interfacing...")
         else:
             self.kimera_mesh_generator()
 
-        self.pseudo_label_generator()
-        #miou_dlab, acc_dlab, class_acc_dlab = self.meter_gt_dlab.measure()
-        miou_pseudo, acc_pseudo, class_acc_pseudo = self.meter_gt_pseudo.measure()
+        # Step 2: Handle pseudo-labels directory
+        pseudo_dir = "/media/adaptation/New_volume/Domain_Adaptation_Pipeline/IO_pipeline/PseudoLabels"
+        if os.listdir(pseudo_dir):  # Directory not empty
+            try:
+                answer = input("PseudoLabels directory is not empty. Regenerate? [y/N]: ").strip().lower()
+            except EOFError:
+                rospy.logerr("Cannot ask for user input. Running in non-interactive mode. Skipping pseudo label generation.")
+                answer = "n"
 
-        #rospy.loginfo(f"[DeepLab] mIoU: {miou_dlab:.3f}, Acc: {acc_dlab:.3f}, ClassAcc: {class_acc_dlab:.3f}")
-        rospy.loginfo(f"[Pseudo]   mIoU: {miou_pseudo:.3f}, Acc: {acc_pseudo:.3f}, ClassAcc: {class_acc_pseudo:.3f}")
-        self.miou_pub.publish(Float64(data=miou_pseudo))
-        with open("/home/michele/Desktop/Domain-Adaptation-Pipeline/IO_pipeline/results.txt", "a") as f:
-            #f.write(f"[DeepLab] mIoU: {miou_dlab:.3f}, Acc: {acc_dlab:.3f}, ClassAcc: {class_acc_dlab:.3f}\n")
-            f.write(f"[Pseudo]   mIoU: {miou_pseudo:.3f}, Acc: {acc_pseudo:.3f}, ClassAcc: {class_acc_pseudo:.3f}\n")
-        '''
-        rospy.loginfo("Preloading data...")
+            if answer == "y":
+                rospy.loginfo("Clearing pseudo-labels directory...")
+                for file in os.listdir(pseudo_dir):
+                    file_path = os.path.join(pseudo_dir, file)
+                    if os.path.isfile(file_path):
+                        os.remove(file_path)
+                self.pseudo_label_generator()
+            else:
+                rospy.loginfo("Skipping pseudo-label generation.")
+        else:
+            self.pseudo_label_generator()
 
-        img_files = sorted([f for f in os.listdir(self.image_dir) if f.endswith(".jpg")])
-
-        rgb_path_pre = os.path.join(self.image_dir, img_files[0])
-        rgb_image_pre = cv2.imread(rgb_path_pre)
-        h,w = rgb_image_pre.shape[:2]
-
-        k_image = [525.0, 0, 319.5, 0, 525.0, 239.5, 0, 0, 1]
-        
-
-        # Preload only camera info (lightweight)
-        camera_info_depth = self.txt_to_camera_info(os.path.join(self.int_dir, "intrinsic_depth.txt"), f"{self.image_dir}/0.jpg")
-        camera_info_img = self.txt_to_camera_info(os.path.join(self.int_dir, "intrinsic_color.txt"), f"{self.depth_dir}/0.png")
-        map1, map2 = cv2.initUndistortRectifyMap(
-            cameraMatrix=np.array(camera_info_img.K).reshape(3, 3),
-            distCoeffs=np.zeros(5),
-            R=np.eye(3),
-            newCameraMatrix=np.array(camera_info_depth.K).reshape(3, 3),
-            size=(640, 480),  # target image size (typically depth resolution)
-            m1type=cv2.CV_32FC1
+        # Step 3: Evaluate metrics after pseudo label generation
+        miou_dlab, acc_dlab, class_acc_dlab = self.calculate_metrics(
+            pred_dir=self.dlab_label_dir,
+            gt_dir=self.gt_label_dir,
+            meter=self.meter_gt_dlab
         )
-        rospy.loginfo("Sending RGB-D + Semantics to Kimera...")
-        frame_idx=0
-        
-        for frame_idx, f in enumerate(tqdm(img_files, desc="Sending frames to Kimera")):
-            
-            stamp = rospy.Time.now()
 
-            # Update camera_info header
-            camera_info_depth.header.stamp = stamp
-            camera_info_depth.header.frame_id = "base_link_gt"
-            self.depth_info_pub.publish(camera_info_depth)
+        miou_pseudo, acc_pseudo, class_acc_pseudo = self.calculate_metrics(
+            pred_dir=pseudo_dir,
+            gt_dir=self.gt_label_dir,
+            meter=self.meter_gt_pseudo
+        )
 
-            # Load pose (small file)
-            pose_path = os.path.join(self.pose_dir, f.replace("frame", "pose").replace(".jpg", ".txt"))
-            pose = self.load_pose(pose_path)
-            self.publish_tf(pose, stamp)
-
-            # Load and process RGB, Depth, and Semantic images using load_all
-            rgb_path = os.path.join(self.image_dir, f)
-            depth_path = os.path.join(self.depth_dir, f.replace("frame", "pose").replace(".jpg", ".png"))
-            
-            sem_path = os.path.join(self.dlab_label_dir, f)
-            
-            # Assuming rgb_image, depth_image, and sem_image are already read images
-            rgb_image = cv2.imread(rgb_path)
-          
-            rgb_image = cv2.cvtColor(rgb_image, cv2.COLOR_BGR2RGB)
-
-            depth_image = cv2.imread(depth_path, cv2.IMREAD_UNCHANGED)
-            
-            sem_image = cv2.imread(sem_path, cv2.IMREAD_GRAYSCALE)
-            
-            _, colored_sem, _ = self.label_elaborator.process(sem_image)
-            # Use load_all function to process the images
-            rgb_processed, depth_processed, sem_processed = self.load_all(rgb_image, depth_image, colored_sem, map1, map2, self.sub_factor)
-            
-            gt = cv2.imread(os.path.join(self.gt_label_dir, f.replace("frame", "pose").replace(".jpg", ".png")), cv2.IMREAD_UNCHANGED)
-            
-            # Convert to ROS messages
-            rgb_msg = PILBridge.PILBridge.numpy_to_rosimg(rgb_processed, encoding="rgb8")
-            depth_msg = PILBridge.PILBridge.numpy_to_rosimg(depth_processed, encoding="16UC1")
-
-            # Process DeepLab image
-            
-            sem_msg = PILBridge.PILBridge.numpy_to_rosimg(sem_processed, encoding="rgb8")
-
-            # Publish semantic message
-            for msg in (rgb_msg, depth_msg, sem_msg):
-                msg.header.frame_id = "base_link_gt"
-                msg.header.seq = frame_idx
-                msg.header.stamp = stamp
-
-            semantic = SyncSemantic()
-            semantic.image = rgb_msg
-            semantic.depth = depth_msg
-            semantic.sem = sem_msg
-            self.kimera_pub.publish(semantic)
-        
-            #print(f"[DEBUG] Frame {frame_idx}: RGB shape = {rgb.shape}, Depth shape = {depth.shape}, Sem shape = {colored_sem.shape}")
-            # Evaluate prediction
-            self.meter_gt_dlab.update(sem_image, gt)
-
-            rospy.sleep(0.1)
-        
-        self.init_srv(h, w, k_image, self.mesh_path, self.serialized_path)
-        #self.outmap_pub.publish(Bool(data=True))
-        rospy.loginfo("Sending end of generation signal...")
-        rospy.loginfo("Generating pseudo labels...")
-        for i, fname in enumerate(tqdm(img_files, desc="Generating pseudo labels")):
-            pose_path = os.path.join(self.pose_dir, fname.replace("frame", "pose").replace(".jpg", ".txt"))
-            print(pose_path)
-            pose = self.load_pose(pose_path)
-
-            request = GenerateLabelRequest()
-            request.pose = pose
-            result = self.generate_srv(request)
-
-            if not result.success:
-                rospy.logerr(f"Label gen failed: {result.error_msg}")
-                continue
-
-            pseudo = PILBridge.PILBridge.rosimg_to_numpy(result.label)
-            gt = cv2.imread(os.path.join(self.gt_label_dir, fname.replace("frame", "pose").replace(".jpg", ".png")), cv2.IMREAD_GRAYSCALE)
-            print(os.path.join(self.gt_label_dir, fname.replace("frame", "pose").replace(".jpg", ".png")))
-
-            _, colored_gt, _ = self.label_elaborator.process(gt)
-            _, colored_pseudo, _ = self.label_elaborator.process(pseudo)
-
-            colored_gt_msg = PILBridge.PILBridge.numpy_to_rosimg(colored_gt)
-            colored_pseudo_msg = PILBridge.PILBridge.numpy_to_rosimg(colored_pseudo)
-            self.ray_cast_pub.publish(colored_pseudo_msg)
-            self.label_nyu40_pub.publish(colored_gt_msg)
-
-
-            self.meter_gt_pseudo.update(self.rgb_to_class_index(colored_pseudo), self.rgb_to_class_index(colored_gt))
-
-        miou_dlab, acc_dlab, class_acc_dlab = self.meter_gt_dlab.measure()
-        miou_pseudo, acc_pseudo, class_acc_pseudo = self.meter_gt_pseudo.measure()
-
+        # Step 4: Log results
         rospy.loginfo(f"[DeepLab] mIoU: {miou_dlab:.3f}, Acc: {acc_dlab:.3f}, ClassAcc: {class_acc_dlab:.3f}")
         rospy.loginfo(f"[Pseudo]   mIoU: {miou_pseudo:.3f}, Acc: {acc_pseudo:.3f}, ClassAcc: {class_acc_pseudo:.3f}")
         self.miou_pub.publish(Float64(data=miou_pseudo))
-        with open("/home/michele/Desktop/Domain-Adaptation-Pipeline/IO_pipeline/results.txt", "a") as f:
-            f.write(f"[DeepLab] mIoU: {miou_dlab:.3f}, Acc: {acc_dlab:.3f}, ClassAcc: {class_acc_dlab:.3f}\n")
-            f.write(f"[Pseudo]   mIoU: {miou_pseudo:.3f}, Acc: {acc_pseudo:.3f}, ClassAcc: {class_acc_pseudo:.3f}\n")
-        '''
 
+        # Step 5: Save results with timestamp and scene
+        result_file = "/home/michele/Desktop/Domain-Adaptation-Pipeline/IO_pipeline/results.txt"
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+        if not os.path.exists(result_file):
+            with open(result_file, "w") as f:
+                f.write("Timestamp, Scene, Type, mIoU, Accuracy, Class Accuracy\n")
+
+        with open(result_file, "a") as f:
+            f.write(f"{current_time}, Scene {self.scene_number}, DeepLab, {miou_dlab:.3f}, {acc_dlab:.3f}, {class_acc_dlab:.3f}\n")
+            f.write(f"{current_time}, Scene {self.scene_number}, Pseudo, {miou_pseudo:.3f}, {acc_pseudo:.3f}, {class_acc_pseudo:.3f}\n")
+        
 if __name__ == "__main__":
     try:
         MockedControlNode().run()

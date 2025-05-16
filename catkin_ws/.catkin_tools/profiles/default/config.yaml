@@ -2,8 +2,6 @@ authors: []
 blacklist: []
 build_space: build
 catkin_make_args: []
-cmake_args:
-- -DCMAKE_BUILD_TYPE=Release
 devel_layout: merged
 devel_space: merged
 extend_path: /opt/ros/noetic

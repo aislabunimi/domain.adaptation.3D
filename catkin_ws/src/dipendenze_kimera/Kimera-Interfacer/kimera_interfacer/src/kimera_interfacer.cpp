@@ -16,8 +16,10 @@
 #include "kimera_semantics_ros/semantic_tsdf_server.h"
 
 #include <tf2_ros/transform_listener.h>
+#include <mutex>
 #include <minkindr_conversions/kindr_tf.h>
 
+#include <std_msgs/Float32.h>
 #include <Eigen/Core>
 #include <Eigen/Geometry>
 #include <filesystem>
@@ -36,8 +38,9 @@ sensor_msgs::Image::Ptr seg_ptr;
 sensor_msgs::CameraInfo::Ptr camera_ptr;
 kimera::PointCloudFromDepth pcl_from_depth;
 ros::Publisher pcl_pub;
-int last_frame_integrated = 0;
 
+int last_frame_integrated = 0;
+std::mutex frame_mutex;
 // Params
 std::string semantic_filename, mesh_filename, tsdf_esdf_filename;
 std::string base_link_frame_id_, world_frame_id_;
@@ -68,10 +71,19 @@ void UpdateCameraCallback(const sensor_msgs::CameraInfo::ConstPtr &msg, sensor_m
 
 void saveAndResetMap()
 {
+  std::lock_guard<std::mutex> lock(frame_mutex);
+ 
   // Save semantic voxel layer and mesh
   tsdf_server->serializeVoxelLayer(semantic_filename);
+  ros::Duration(1.0).sleep();
   tsdf_server->generateMesh();
+  ROS_INFO("Map Generated ...");
+  ros::Duration(1.0).sleep();
   tsdf_server->saveMap(tsdf_esdf_filename);
+  ROS_INFO("Tsdf map saved ...");
+  
+  // Aggiungi una pausa di 1 secondo tra il salvataggio e il reset
+  ros::Duration(2.0).sleep();  // 1 secondo di pausa
 
   // Generate and save ESDF -- PROBABLY NOT NEEDED AND GENERATES ERRORS FOR SUBSCRIBERS not blocking 
   static constexpr bool kGenerateEsdf = true;
@@ -79,17 +91,19 @@ void saveAndResetMap()
   esdf_server.loadMap(tsdf_esdf_filename);
   esdf_server.disableIncrementalUpdate();
 
-  if (kGenerateEsdf ||
-      esdf_server.getEsdfMapPtr()->getEsdfLayerPtr()->getNumberOfAllocatedBlocks() == 0)
+  if (kGenerateEsdf || esdf_server.getEsdfMapPtr()->getEsdfLayerPtr()->getNumberOfAllocatedBlocks() == 0)
   {
     static constexpr bool kFullEuclideanDistance = true;
     esdf_server.updateEsdfBatch(kFullEuclideanDistance);
   }
 
   esdf_server.saveMap(tsdf_esdf_filename);
-  ROS_INFO("Map saved. Resetting state...");
+  ROS_INFO("Esdf map saved. Resetting state ...");
+  // Aggiungi una pausa prima di chiamare il clear
+  ros::Duration(1.0).sleep();  // 1 secondo di pausa
 
   // Reset
+  
   tsdf_server->clear();
   depth_ptr.reset(new sensor_msgs::Image);
   img_ptr.reset(new sensor_msgs::Image);
@@ -97,6 +111,8 @@ void saveAndResetMap()
   camera_ptr.reset(new sensor_msgs::CameraInfo);
   last_frame_integrated = 0;
   stop_generation = false;
+  ROS_INFO("State resetted!");
+  return;
 }
 
 int main(int argc, char **argv)
@@ -130,14 +146,16 @@ int main(int argc, char **argv)
   nh_private.param("verbose", verbose, false);
 
   // Subscribers
-  ros::Subscriber sync_sub = nh.subscribe<kimera_interfacer::SyncSemantic>(sync_topic, 10,
+  ros::Subscriber sync_sub = nh.subscribe<kimera_interfacer::SyncSemantic>(sync_topic, 1,
     boost::bind(&SyncSemanticCallback, _1, img_ptr, depth_ptr, seg_ptr));
-  ros::Subscriber stop_sub = nh.subscribe<std_msgs::Bool>("/kimera/end_generation_map", 10, StopCallback);
-  ros::Subscriber camera_sub = nh.subscribe<sensor_msgs::CameraInfo>("depth_camera_info", 10,
+  ros::Subscriber stop_sub = nh.subscribe<std_msgs::Bool>("/kimera/end_generation_map", 1, StopCallback);
+  ros::Subscriber camera_sub = nh.subscribe<sensor_msgs::CameraInfo>("depth_camera_info", 1,
     boost::bind(&UpdateCameraCallback, _1, camera_ptr));
 
   // Publisher
   pcl_pub = nh.advertise<kimera::PointCloud>("pcl", 10, true);
+  ros::Publisher integration_time_pub = nh.advertise<std_msgs::Float32>("/kimera/integration_duration", 10);
+
 
   // TF
   tf2_ros::Buffer tfBuffer;
@@ -148,21 +166,23 @@ int main(int argc, char **argv)
   tsdf_server = kimera::make_unique<kimera::SemanticTsdfServer>(nh, nh_private ,verbose); // ADD VERBOSE IF NECESSARY
 
   ros::Rate r(50);
-  ros::AsyncSpinner spinner(2);
-  spinner.start();
+  
 
   while (ros::ok())
   {
+    ros::spinOnce(); 
     bool new_frame = depth_ptr->header.seq != last_frame_integrated;
 
     if (stop_generation)
     {
       saveAndResetMap();
+      ros::Duration(1.0).sleep();
       continue;
     }
 
     if (new_frame)
     {
+      std::lock_guard<std::mutex> lock(frame_mutex);
       last_frame_integrated = depth_ptr->header.seq;
       kimera::PointCloud::Ptr pcl = pcl_from_depth.imageCb(depth_ptr, seg_ptr, camera_ptr);
 
@@ -174,9 +194,21 @@ int main(int argc, char **argv)
 
         voxblox::Transformation T_G_B;
         tf::transformTFToKindr(tf_transform, &T_G_B);
-
         voxblox::Transformation T_B_C = T_G_B.inverse();
+
+        // Timer start
+        auto start_time = std::chrono::steady_clock::now();
+
         tsdf_server->processPointCloudMessageAndInsert(pcl, T_B_C, false);
+
+        // Timer end
+        auto end_time = std::chrono::steady_clock::now();
+        std::chrono::duration<float> elapsed = end_time - start_time;
+
+        std_msgs::Float32 msg;
+        msg.data = elapsed.count();  // seconds
+        integration_time_pub.publish(msg);
+
         pcl_pub.publish(pcl);
       }
       catch (tf2::TransformException &ex)
@@ -188,6 +220,5 @@ int main(int argc, char **argv)
     r.sleep();
   }
 
-  spinner.stop();
   return EXIT_SUCCESS;
 }
