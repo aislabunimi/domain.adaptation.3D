@@ -1,5 +1,5 @@
 <launch>
-    <arg name="data_root" default="/media/adaptation/New_volume/Domain_Adaptation_Pipeline/IO_pipeline/Scannet_DB/scans/scene0000_00" />
+    <arg name="data_root" default="/media/adaptation/New_volume/Domain_Adaptation_Pipeline/IO_pipeline/Scannet_DB/scans/scene0001_00" />
     <arg name="kimera_int_out_dir" default="/media/adaptation/New_volume/Domain_Adaptation_Pipeline/IO_pipeline/Pipeline/Output_kimera_mesh" />
 
 

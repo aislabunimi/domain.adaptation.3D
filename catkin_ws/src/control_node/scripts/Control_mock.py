@@ -26,7 +26,8 @@ timer = np.float32(0.0)
 
 class MockedControlNode:
 
-    def __init__(self):
+    def __init__(self,auto_yes=False):
+        self.auto_yes = auto_yes
         rospy.init_node("Control_mock", anonymous=True)
         self.sub_factor=1
         self.original_image_size=(640,480)
@@ -474,7 +475,10 @@ class MockedControlNode:
         if os.path.exists(self.mesh_path):
             rospy.logwarn(f"Mesh file '{self.mesh_path}' already exists.")
             try:
-                answer = input("Mesh already exists. Regenerate? [y/N]: ").strip().lower()
+                if self.auto_yes:
+                    answer = "y"
+                else:
+                    answer = input("Mesh already exists. Regenerate? [y/N]: ").strip().lower()
             except EOFError:
                 rospy.logerr("Cannot ask for user input. Running in non-interactive mode. Skipping mesh regeneration.")
                 answer = "n"
@@ -490,7 +494,10 @@ class MockedControlNode:
         pseudo_dir = "/media/adaptation/New_volume/Domain_Adaptation_Pipeline/IO_pipeline/PseudoLabels"
         if os.listdir(pseudo_dir):  # Directory not empty
             try:
-                answer = input("PseudoLabels directory is not empty. Regenerate? [y/N]: ").strip().lower()
+                if self.auto_yes:
+                    answer = "y"
+                else:
+                    answer = input("PseudoLabels directory is not empty. Regenerate? [y/N]: ").strip().lower()
             except EOFError:
                 rospy.logerr("Cannot ask for user input. Running in non-interactive mode. Skipping pseudo label generation.")
                 answer = "n"
@@ -526,7 +533,7 @@ class MockedControlNode:
         self.miou_pub.publish(Float64(data=miou_pseudo))
 
         # Step 5: Save results with timestamp and scene
-        result_file = "/home/michele/Desktop/Domain-Adaptation-Pipeline/IO_pipeline/results.txt"
+        result_file = "/media/adaptation/New_volume/Domain_Adaptation_Pipeline/IO_pipeline/results.txt"
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         if not os.path.exists(result_file):
@@ -536,9 +543,9 @@ class MockedControlNode:
         with open(result_file, "a") as f:
             f.write(f"{current_time}, Scene {self.scene_number}, DeepLab, {miou_dlab:.3f}, {acc_dlab:.3f}, {class_acc_dlab:.3f}\n")
             f.write(f"{current_time}, Scene {self.scene_number}, Pseudo, {miou_pseudo:.3f}, {acc_pseudo:.3f}, {class_acc_pseudo:.3f}\n")
-        
+
 if __name__ == "__main__":
     try:
-        MockedControlNode().run()
+        MockedControlNode(auto_yes=True).run()
     except rospy.ROSInterruptException:
         pass
