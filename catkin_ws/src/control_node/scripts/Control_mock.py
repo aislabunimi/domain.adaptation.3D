@@ -38,6 +38,7 @@ class MockedControlNode:
         self.miou_pub = rospy.Publisher('/miou', Float64, queue_size=1)
         self.ray_cast_pub = rospy.Publisher('/rayCasted', Image, queue_size=1)
         self.label_nyu40_pub = rospy.Publisher('/label_nyu40', Image, queue_size=1)
+        
 
         # Susbs
         rospy.Subscriber("/kimera/integration_duration", Float32, self.timer_callback)
@@ -55,6 +56,8 @@ class MockedControlNode:
         self.int_dir = rospy.get_param("~intrinsic_dir")
         self.mesh_path = rospy.get_param("~mesh_path")
         self.serialized_path = rospy.get_param("~serialized_path")
+        self.scene_number = rospy.get_param("~scene_number")
+        self.pseudo_dir=rospy.get_param("~pseudo_dir")
 
         mapping = np.genfromtxt(rospy.get_param("~mapping_file"), delimiter=",")[1:, 1:4]
         self.class_colors = mapping
@@ -411,7 +414,7 @@ class MockedControlNode:
             gt_processed = gt_processed.astype(np.int16) - 1
 
             self.meter_gt_dlab.update(sem_processed, gt_processed)
-            rospy.sleep(0.7)
+            rospy.sleep(0.2)
 
         rospy.sleep(10)
 
@@ -432,8 +435,10 @@ class MockedControlNode:
 
         self.init_srv(h, w, np.array(camera_info.K), self.mesh_path, self.serialized_path)
 
-
-        num_files = int(len(img_files) * 0.8)
+        
+            # Create output directory if it doesn't exist
+        if not os.path.exists(self.pseudo_dir):
+            os.makedirs(self.pseudo_dir)
 
         for i, fname in enumerate(tqdm(img_files, desc="Generating pseudo labels")):
 
@@ -457,9 +462,13 @@ class MockedControlNode:
             
             _, colored_gt, _ = self.label_elaborator.process(gt)
             _, colored_pseudo, _ = self.label_elaborator.process(pseudo)
-            output_dir = "/media/adaptation/New_volume/Domain_Adaptation_Pipeline/IO_pipeline/PseudoLabels"
-            output_filename = fname.replace(".jpg", ".png")  # or another name if needed
-            output_path = os.path.join(output_dir, output_filename)
+
+
+
+
+            output_filename = fname.replace(".jpg", ".png")
+            output_path = os.path.join(self.pseudo_dir, output_filename)
+
             colored_pseudo_bgr = cv2.cvtColor(colored_pseudo, cv2.COLOR_RGB2BGR)
             cv2.imwrite(output_path, colored_pseudo_bgr)
             colored_gt_msg = PILBridge.PILBridge.numpy_to_rosimg(colored_gt)
@@ -467,7 +476,6 @@ class MockedControlNode:
             self.ray_cast_pub.publish(colored_pseudo_msg)
             self.label_nyu40_pub.publish(colored_gt_msg)
             
-            self.meter_gt_pseudo.update(gt, pseudo)
      
 
     def run(self):
@@ -491,8 +499,8 @@ class MockedControlNode:
             self.kimera_mesh_generator()
 
         # Step 2: Handle pseudo-labels directory
-        pseudo_dir = "/media/adaptation/New_volume/Domain_Adaptation_Pipeline/IO_pipeline/PseudoLabels"
-        if os.listdir(pseudo_dir):  # Directory not empty
+        pseudo_dir = self.pseudo_dir
+        if os.path.isdir(pseudo_dir) and os.listdir(pseudo_dir):  # Directory not empty
             try:
                 if self.auto_yes:
                     answer = "y"

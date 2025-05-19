@@ -10,6 +10,7 @@
   <arg name="scannet_labels"         default="False" />
   <arg name="voxel_size"             default="0.03"/>
   <arg name="max_ray_length_m"       default="5"/>
+  <arg name="verbose" default="false"/>
 
   <!--  FRAMES  -->
   <arg name="sensor_frame"       default="base_link_forward"/>
@@ -53,7 +54,7 @@
       <param name="base_link_gt_frame"        value="$(arg base_link_gt_frame)"/>
       <param name="base_link_frame"           value="$(arg base_link_frame)"/>
       <param name="world_frame"               value="map"/>
-      <param name="verbose"                   value="false"/>
+      <param name="verbose" value="$(arg verbose)"/>
 
       <!--Input-->
       <remap from="pointcloud"                to="$(arg semantic_pointcloud)"/>
