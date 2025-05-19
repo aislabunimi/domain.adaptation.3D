@@ -1,5 +1,6 @@
 output_db
 *.pth
+*.pt
 *.ckpt
 *.ply
 catkin_ws/build
