@@ -1,89 +1,88 @@
 import cv2
 import numpy as np
-from ultralytics import SAM
+from ultralytics.models.sam import SAM2Predictor
 import matplotlib.pyplot as plt
+
 
 class SAM2RefinerMixed:
     def __init__(self, model_path: str = "sam2_b.pt"):
-        """
-        Initializes the SAM2 model.
-        """
-        self.model = SAM(model_path)
+        overrides = dict(conf=0.25, task="segment", mode="predict", imgsz=1024, model=model_path)
+        self.predictor = SAM2Predictor(overrides=overrides)
 
     def refine(self, image: np.ndarray, mask: np.ndarray) -> np.ndarray:
-        """
-        Refines a segmentation mask using SAM2 with both points and bounding boxes as prompts.
-        Skips wall=1 and floor=2.
-        """
-        refined_mask = np.zeros_like(mask, dtype=np.uint8)
+        refined_mask = mask.copy()
         unique_labels = np.unique(mask)
         print(f"[INFO] Found labels: {unique_labels}")
 
         for label in unique_labels:
-            if label in [0]:
-                continue  # Skip background, wall, floor
+            if label == 0:
+                continue
 
-            binary_mask = (mask == label).astype(np.uint8)
+            original_mask = (mask == label).astype(np.uint8)
 
-            # Connect nearby fragments
+            # Dilate to merge nearby fragments
             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
-            dilated_mask = cv2.dilate(binary_mask, kernel, iterations=1)
+            dilated_mask = cv2.dilate(original_mask, kernel, iterations=1)
 
-            # Connected components
+            # Extract connected components from dilated mask
             num_components, components = cv2.connectedComponents(dilated_mask)
-            print(f"[INFO] Label {label} → {num_components - 1} connected components")
+            print(f"[INFO] Label {label} → {num_components - 1} components")
 
             for comp_id in range(1, num_components):
                 comp_mask = (components == comp_id).astype(np.uint8)
 
-                # Bounding box
-                x, y, w, h = cv2.boundingRect(comp_mask)
-                x1, y1, x2, y2 = x, y, x + w, y + h
+                
 
-                # Median point inside the mask
+                # Bounding box from valid component mask
+                x, y, w, h = cv2.boundingRect(comp_mask)
+                box = [x, y, x + w, y + h]
                 ys, xs = np.where(comp_mask == 1)
-                if len(xs) == 0:
+                # Compute centroid from valid component mask
+                M = cv2.moments(comp_mask)
+                if M["m00"] == 0:
                     continue
-                cx, cy = int(np.median(xs)), int(np.median(ys))
+                cx = int(M["m10"] / M["m00"])
+                cy = int(M["m01"] / M["m00"])
+
+                # If centroid is outside, snap it to nearest foreground pixel
+                cx, cy = np.median(xs).astype(int), np.median(ys).astype(int)
+                prompt_points = [[cx, cy]]
 
                 try:
-                    results = self.model.predict(
-                        image,
-                        points=[[cx, cy]],
-                        bboxes=[ [x1, y1, x2, y2] ]
+                    results = self.predictor(
+                        source=[image],
+                        points=[prompt_points],
+                        #labels=[prompt_labels],
+                        boxes=[[box]]
                     )
                 except Exception as e:
-                    print(f"[ERROR] SAM prediction failed for box ({x1}, {y1}, {x2}, {y2}): {e}")
+                    print(f"[ERROR] SAM failed for label {label} @ {box}: {e}")
                     continue
 
-                if not results or not hasattr(results[0], "masks") or results[0].masks is None:
-                    print(f"[WARN] No masks returned for label {label} at ({cx}, {cy})")
+                if not results or results[0].masks is None:
+                    print(f"[WARN] No mask returned for label {label}")
                     continue
 
-                for sam_m in results[0].masks:
-                    sam_mask = sam_m.data.cpu().numpy().squeeze().astype(np.uint8)
+                sam_mask = results[0].masks[0].data.cpu().numpy().squeeze().astype(np.uint8)
 
-                    # === DEBUG VISUALIZATION ===
-                    debug_overlay = image.copy()
-                    debug_overlay[sam_mask == 1] = [255, 0, 0]
-                    cv2.circle(debug_overlay, (cx, cy), 5, (0, 255, 0), -1)
-                    cv2.rectangle(debug_overlay, (x1, y1), (x2, y2), (0, 255, 255), 2)
+                # Determine dominant pseudo label in returned mask
+                overlap_labels = mask[sam_mask == 1]
+                if overlap_labels.size == 0:
+                    continue
+                dominant_label = np.bincount(overlap_labels).argmax()
 
-                    plt.figure(figsize=(6, 4))
-                    plt.title(f"Label {label} | Pt ({cx}, {cy}) + Box")
-                    plt.imshow(cv2.cvtColor(debug_overlay, cv2.COLOR_BGR2RGB))
-                    plt.axis('off')
-                    plt.show()
+                refined_mask[sam_mask == 1] = dominant_label
 
-                    # Determine majority label
-                    overlapping_labels = mask[sam_mask == 1]
-                    if overlapping_labels.size == 0:
-                        continue
-                    majority_label = np.bincount(overlapping_labels).argmax()
+                # === Debug visualization ===
+                debug = image.copy()
+                debug[sam_mask == 1] = [255, 0, 0]  # Red for prediction
+                cv2.circle(debug, (cx, cy), 4, (0, 255, 0), -1)  # Green dot for prompt point
+                cv2.rectangle(debug, (x, y), (x + w, y + h), (0, 255, 255), 2)
 
-                    refined_mask[sam_mask == 1] = majority_label
+                plt.figure(figsize=(6, 4))
+                plt.title(f"Label {label} → Dominant: {dominant_label} | Centroid: ({cx},{cy})")
+                plt.imshow(cv2.cvtColor(debug, cv2.COLOR_BGR2RGB))
+                plt.axis("off")
+                plt.show()
 
-        # Fill holes with original mask
-        refined_mask[refined_mask == 0] = mask[refined_mask == 0]
-        print("[INFO] Refinement complete.")
         return refined_mask
