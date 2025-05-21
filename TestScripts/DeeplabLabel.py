@@ -8,7 +8,7 @@ import numpy as np
 import cv2
 from PILBridge import PILBridge
 import rospkg
-from LabelElaborator import LabelElaborator
+from TestScripts.GenerateColoredLabel import LabelElaborator
 
 # Use a global flag to track callback response
 received_response = False

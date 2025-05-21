@@ -21,6 +21,7 @@ from tqdm import tqdm
 import imageio.v2 as imageio
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from FastSamRefiner import SAM2RefinerMixed
 
 timer = np.float32(0.0)
 
@@ -58,19 +59,21 @@ class MockedControlNode:
         self.serialized_path = rospy.get_param("~serialized_path")
         self.scene_number = rospy.get_param("~scene_number")
         self.pseudo_dir=rospy.get_param("~pseudo_dir")
+        self.sam_dir=rospy.get_param("~sam_dir")
 
         mapping = np.genfromtxt(rospy.get_param("~mapping_file"), delimiter=",")[1:, 1:4]
         self.class_colors = mapping
         self.label_elaborator = LabelElaborator(self.class_colors, confidence=0)
         self.meter_gt_dlab = SemanticsMeter(number_classes=40)
         self.meter_gt_pseudo = SemanticsMeter(number_classes=40)
-
+        self.meter_gt_sam=SemanticsMeter(number_classes=40)
         # Service clients
         rospy.wait_for_service('/label_generator/init')
         rospy.wait_for_service('/label_generator/generate')
         self.init_srv = rospy.ServiceProxy('/label_generator/init', InitLabelGenerator)
         self.generate_srv = rospy.ServiceProxy('/label_generator/generate', GenerateLabel)
 
+    # region Utils
     def timer_callback(self, msg):
         global timer
         timer = np.float32(msg.data)
@@ -248,38 +251,8 @@ class MockedControlNode:
         )
 
         return map1_rgb, map2_rgb, map1_depth, map2_depth
-    
-    def miou_deeplab_gt(self):
 
-        img_files = sorted([f for f in os.listdir(self.image_dir) if f.endswith(".jpg")],
-                   key=lambda x: int(x.split('.')[0]))
-        
-        num_files = int(len(img_files) * 0.8) # 80%
-        
-        for frame_idx, f in enumerate(tqdm(img_files[:num_files], desc="Rerading frames for evaluation")):
-            stamp = rospy.Time.now()
-            
-            sem_path = os.path.join(self.dlab_label_dir, f.replace("frame", "pose").replace(".jpg", ".png"))
-            gt_path = os.path.join(self.gt_label_dir, f.replace("frame", "pose").replace(".jpg", ".png"))
-           
-            # Load images
-            sem_image = cv2.imread(sem_path, cv2.IMREAD_GRAYSCALE)
-            gt_image = cv2.imread(gt_path, cv2.IMREAD_UNCHANGED)
-            gt_image = cv2.resize(gt_image, (320, 240), interpolation=cv2.INTER_NEAREST)
-            if sem_image is None:
-                print(f"[WARNING] Could not read semantic image: {sem_path}")
-                continue
-            if gt_image is None:
-                print(f"[WARNING] Could not read ground truth image: {gt_path}")
-                continue
-            
-            gt_image = gt_image.astype(np.int16) - 1
-            sem_image = sem_image.astype(np.int16) - 1
-            #print(f"[DEBUG] Frame {f}: Unique preds = {np.unique(sem_image)}, Unique GT = {np.unique(gt_image)}")
-            if (gt_image == -1).all():
-                # all elements are -1, so skip processing
-                continue
-            self.meter_gt_dlab.update(sem_image, gt_image)
+    # endregion
     
     def calculate_metrics(self,pred_dir, gt_dir, meter, resize_to=(320, 240), file_ext=".png"):
         """
@@ -414,7 +387,7 @@ class MockedControlNode:
             gt_processed = gt_processed.astype(np.int16) - 1
 
             self.meter_gt_dlab.update(sem_processed, gt_processed)
-            rospy.sleep(0.2)
+            rospy.sleep(1)
 
         rospy.sleep(10)
 
@@ -475,7 +448,45 @@ class MockedControlNode:
             colored_pseudo_msg = PILBridge.PILBridge.numpy_to_rosimg(colored_pseudo)
             self.ray_cast_pub.publish(colored_pseudo_msg)
             self.label_nyu40_pub.publish(colored_gt_msg)
-            
+
+    def refine_with_sam(self, pseudo_label_files):
+        """
+        Refines all pseudo-labels using SAM2RefinerMixed and saves results to sam_refined_dir.
+        Assumes each pseudo label has a matching RGB image with the same filename.
+        """
+        rospy.loginfo("Initializing SAM2RefinerMixed...")
+        refiner = SAM2RefinerMixed(visualize=False,batch_size=16, skip_labels=[1])  # Default model path assumed
+        w,h = self.image_size
+
+        os.makedirs(self.sam_dir, exist_ok=True)
+
+        for label_path in tqdm(pseudo_label_files, desc="Refining masks with SAM"):
+            filename = os.path.basename(label_path)
+            image_path = os.path.join(self.image_dir, filename.replace(".png", ".jpg"))
+
+            if not os.path.exists(image_path):
+                rospy.logwarn(f"RGB image not found for label '{filename}', skipping...")
+                continue
+
+            image = cv2.imread(image_path)
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            mask = cv2.imread(label_path)
+            mask = cv2.cvtColor(mask, cv2.COLOR_BGR2RGB)
+            mask = cv2.resize(mask, (image.shape[1], image.shape[0]), interpolation=cv2.INTER_NEAREST)
+            mask = self.rgb_to_class_index(mask)
+
+            if image is None or mask is None:
+                rospy.logwarn(f"Failed to load image or mask for '{filename}', skipping...")
+                continue
+
+            #rospy.loginfo(f"Refining '{filename}'...")
+            refined = refiner.refine(image, mask)
+
+            save_path = os.path.join(self.sam_dir, filename)
+            cv2.imwrite(save_path, refined)
+            #rospy.loginfo(f"Saved refined mask to '{save_path}'")
+
+        rospy.loginfo("All SAM refinements completed.")
      
 
     def run(self):
@@ -522,7 +533,36 @@ class MockedControlNode:
         else:
             self.pseudo_label_generator()
 
-        # Step 3: Evaluate metrics after pseudo label generation
+        # Step 2.5: Refine pseudo-labels with SAM
+        sam_refined_dir = self.sam_dir  # You should define this in __init__ or elsewhere
+
+        if os.path.isdir(sam_refined_dir) and os.listdir(sam_refined_dir):  # Directory exists and is not empty
+            try:
+                if self.auto_yes:
+                    answer = "y"
+                else:
+                    answer = input("SAM refined directory is not empty. Regenerate? [y/N]: ").strip().lower()
+            except EOFError:
+                rospy.logerr("Cannot ask for user input. Running in non-interactive mode. Skipping SAM refinement.")
+                answer = "n"
+
+            if answer == "y":
+                rospy.loginfo("Clearing SAM refined directory...")
+                for file in os.listdir(sam_refined_dir):
+                    file_path = os.path.join(sam_refined_dir, file)
+                    if os.path.isfile(file_path):
+                        os.remove(file_path)
+                rospy.loginfo("Refining pseudo-labels with SAM...")
+                pseudo_label_files = [os.path.join(pseudo_dir, f) for f in os.listdir(pseudo_dir) if f.endswith(".png")]
+                self.refine_with_sam(pseudo_label_files)
+            else:
+                rospy.loginfo("Skipping SAM refinement.")
+        else:
+            rospy.loginfo("SAM refined directory is empty or does not exist. Refining pseudo-labels with SAM...")
+            pseudo_label_files = [os.path.join(pseudo_dir, f) for f in os.listdir(pseudo_dir) if f.endswith(".png")]
+            self.refine_with_sam(pseudo_label_files)
+        
+        # Step 3: Evaluate metrics after pseudo label generation and SAM refinement
         miou_dlab, acc_dlab, class_acc_dlab = self.calculate_metrics(
             pred_dir=self.dlab_label_dir,
             gt_dir=self.gt_label_dir,
@@ -535,9 +575,18 @@ class MockedControlNode:
             meter=self.meter_gt_pseudo
         )
 
+        miou_sam, acc_sam, class_acc_sam = self.calculate_metrics(
+            pred_dir=self.sam_dir,
+            gt_dir=self.gt_label_dir,
+            meter=self.meter_gt_sam  # Make sure this exists in your class!
+        )
+
         # Step 4: Log results
         rospy.loginfo(f"[DeepLab] mIoU: {miou_dlab:.3f}, Acc: {acc_dlab:.3f}, ClassAcc: {class_acc_dlab:.3f}")
         rospy.loginfo(f"[Pseudo]   mIoU: {miou_pseudo:.3f}, Acc: {acc_pseudo:.3f}, ClassAcc: {class_acc_pseudo:.3f}")
+        rospy.loginfo(f"[SAM]      mIoU: {miou_sam:.3f}, Acc: {acc_sam:.3f}, ClassAcc: {class_acc_sam:.3f}")
+
+        # Publish mIoU for pseudo (you can also publish SAM if needed)
         self.miou_pub.publish(Float64(data=miou_pseudo))
 
         # Step 5: Save results with timestamp and scene
@@ -551,9 +600,10 @@ class MockedControlNode:
         with open(result_file, "a") as f:
             f.write(f"{current_time}, Scene {self.scene_number}, DeepLab, {miou_dlab:.3f}, {acc_dlab:.3f}, {class_acc_dlab:.3f}\n")
             f.write(f"{current_time}, Scene {self.scene_number}, Pseudo, {miou_pseudo:.3f}, {acc_pseudo:.3f}, {class_acc_pseudo:.3f}\n")
+            f.write(f"{current_time}, Scene {self.scene_number}, SAM, {miou_sam:.3f}, {acc_sam:.3f}, {class_acc_sam:.3f}\n")
 
 if __name__ == "__main__":
     try:
-        MockedControlNode(auto_yes=True).run()
+        MockedControlNode(auto_yes=False).run()
     except rospy.ROSInterruptException:
         pass

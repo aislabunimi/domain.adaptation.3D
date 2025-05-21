@@ -46,7 +46,7 @@ class LabelElaborator:
             method = "MAPPED"
 
         else:
-            raise Exception("Unsupported image type")
+            raise Exception(f"Unsupported image type: shape={img.shape}, dtype={img.dtype}")
 
         return label, self.labels_to_rgb(label), method
 

@@ -4,7 +4,7 @@ import cv2
 import os
 import argparse
 from PILBridge import PILBridge
-from LabelElaborator import LabelElaborator
+from TestScripts.GenerateColoredLabel import LabelElaborator
 import numpy as np
 from functools import partial
 from tqdm import tqdm
