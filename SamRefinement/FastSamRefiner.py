@@ -4,17 +4,23 @@ import matplotlib.pyplot as plt
 from ultralytics import SAM
 
 class SAM2RefinerMixed:
-    def __init__(self, model_path: str = "sam2_b.pt", visualize: bool = True):
+    def __init__(self, model_path: str = "sam2_b.pt", visualize: bool = True, skip_labels: list = None):
         """
         Initializes the SAM2 model.
+        
+        Args:
+            model_path (str): Path to SAM2 model weights.
+            visualize (bool): Whether to show debug visualization.
+            skip_labels (list): List of class indices to skip during refinement.
         """
         self.model = SAM(model_path)
         self.visualize = visualize
+        self.skip_labels = skip_labels if skip_labels else []
 
     def refine(self, image: np.ndarray, mask: np.ndarray) -> np.ndarray:
         """
         Refines a segmentation mask using SAM2 with batched points and bounding boxes as prompts.
-        Skips background (label=0).
+        Skips background (label=0) and any labels in `self.skip_labels`.
         """
         refined_mask = np.zeros_like(mask, dtype=np.uint8)
         unique_labels = np.unique(mask)
@@ -26,8 +32,8 @@ class SAM2RefinerMixed:
 
         # Step 1: Collect prompts
         for label in unique_labels:
-            if label == 0:
-                continue  # Skip background
+            if label == 0 or label in self.skip_labels:
+                continue  # Skip background and ignored classes
 
             binary_mask = (mask == label).astype(np.uint8)
             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
@@ -76,7 +82,6 @@ class SAM2RefinerMixed:
             if overlapping_labels.size == 0:
                 continue
 
-            # Use majority label in the region, or the original prompt label
             majority_label = np.bincount(overlapping_labels).argmax()
             refined_mask[sam_mask == 1] = majority_label
 
