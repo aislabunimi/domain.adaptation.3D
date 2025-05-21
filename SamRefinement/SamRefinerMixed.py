@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 class SAM2RefinerMixed:
     def __init__(self, model_path: str = "sam2_b.pt"):
-        overrides = dict(conf=0.25, task="segment", mode="predict", imgsz=1024, model=model_path)
+        overrides = dict(conf=0.25, task="segment", mode="predict",verbose=False, imgsz=1024, model=model_path)
         self.predictor = SAM2Predictor(overrides=overrides)
 
     def refine(self, image: np.ndarray, mask: np.ndarray) -> np.ndarray:
