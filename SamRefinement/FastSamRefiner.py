@@ -16,7 +16,6 @@ class SAM2RefinerMixed:
         self.model = SAM(model_path)
         self.visualize = visualize
         self.skip_labels = skip_labels if skip_labels else []
-
     def refine(self, image: np.ndarray, mask: np.ndarray) -> np.ndarray:
         """
         Refines a segmentation mask using SAM2 with batched points and bounding boxes as prompts.
@@ -85,8 +84,22 @@ class SAM2RefinerMixed:
             majority_label = np.bincount(overlapping_labels).argmax()
             refined_mask[sam_mask == 1] = majority_label
 
-        # Fill unassigned areas
-        refined_mask[refined_mask == 0] = mask[refined_mask == 0]
+        # Step 4: Handle unassigned areas with majority vote from original mask
+        unassigned_mask = (refined_mask == 0)
+        num_unassigned_components, unassigned_components = cv2.connectedComponents(unassigned_mask.astype(np.uint8))
+        print(f"[INFO] Filling {num_unassigned_components - 1} unassigned components...")
+
+        for comp_id in range(1, num_unassigned_components):
+            comp_mask = (unassigned_components == comp_id)
+            original_labels = mask[comp_mask]
+            valid_labels = original_labels[original_labels != 0]
+
+            if valid_labels.size == 0:
+                continue  # Skip if no valid original label inside component
+
+            majority_label = np.bincount(valid_labels).argmax()
+            refined_mask[comp_mask] = majority_label
+
         print("[INFO] Refinement complete.")
 
         # Optional visualization
