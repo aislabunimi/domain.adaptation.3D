@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from ultralytics import SAM
 
 class SAM2RefinerMixed:
-    def __init__(self, model_path: str = "sam2_b.pt", visualize: bool = True, skip_labels: list = None):
+    def __init__(self, model_path: str = "sam2_b.pt", visualize: bool = True, skip_labels: list = None, batch_size: int = 8):
         """
         Initializes the SAM2 model.
         
@@ -12,18 +12,16 @@ class SAM2RefinerMixed:
             model_path (str): Path to SAM2 model weights.
             visualize (bool): Whether to show debug visualization.
             skip_labels (list): List of class indices to skip during refinement.
+            batch_size (int): Number of prompts to run in each SAM inference batch.
         """
         self.model = SAM(model_path)
         self.visualize = visualize
         self.skip_labels = skip_labels if skip_labels else []
+        self.batch_size = batch_size
+        
     def refine(self, image: np.ndarray, mask: np.ndarray) -> np.ndarray:
-        """
-        Refines a segmentation mask using SAM2 with batched points and bounding boxes as prompts.
-        Skips background (label=0) and any labels in `self.skip_labels`.
-        """
         refined_mask = np.zeros_like(mask, dtype=np.uint8)
         unique_labels = np.unique(mask)
-        print(f"[INFO] Found labels: {unique_labels}")
 
         all_points = []
         all_bboxes = []
@@ -32,12 +30,11 @@ class SAM2RefinerMixed:
         # Step 1: Collect prompts
         for label in unique_labels:
             if label == 0 or label in self.skip_labels:
-                continue  # Skip background and ignored classes
+                continue
 
             binary_mask = (mask == label).astype(np.uint8)
             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
             dilated_mask = cv2.dilate(binary_mask, kernel, iterations=1)
-
             num_components, components = cv2.connectedComponents(dilated_mask)
 
             for comp_id in range(1, num_components):
@@ -59,55 +56,53 @@ class SAM2RefinerMixed:
             return mask.copy()
 
         # Step 2: Batch predict
-        try:
-            results = self.model.predict(
-                image,
-                points=all_points,
-                bboxes=all_bboxes,
-                verbose=False
-            )
-        except Exception as e:
-            print(f"[ERROR] Batch SAM prediction failed: {e}")
-            return mask.copy()
+        for i in range(0, len(all_points), self.batch_size):
+            points_batch = all_points[i:i+self.batch_size]
+            bboxes_batch = all_bboxes[i:i+self.batch_size]
+            labels_batch = prompt_labels[i:i+self.batch_size]
 
-        # Step 3: Process results
-        if not results or not hasattr(results[0], "masks") or results[0].masks is None:
-            print(f"[WARN] No masks returned from SAM.")
-            return mask.copy()
-
-        for idx, sam_m in enumerate(results[0].masks):
-            sam_mask = sam_m.data.cpu().numpy().squeeze().astype(np.uint8)
-            overlapping_labels = mask[sam_mask == 1]
-            if overlapping_labels.size == 0:
+            try:
+                results = self.model.predict(
+                    image,
+                    points=points_batch,
+                    bboxes=bboxes_batch,
+                    verbose=False
+                )
+            except Exception as e:
+                print(f"[ERROR] SAM prediction failed on batch {i}-{i+self.batch_size}: {e}")
                 continue
 
-            majority_label = np.bincount(overlapping_labels).argmax()
-            refined_mask[sam_mask == 1] = majority_label
+            if not results or not hasattr(results[0], "masks") or results[0].masks is None:
+                continue
 
-        # Step 4: Handle unassigned areas with majority vote from original mask
-        unassigned_mask = (refined_mask == 0)
-        num_unassigned_components, unassigned_components = cv2.connectedComponents(unassigned_mask.astype(np.uint8))
-        print(f"[INFO] Filling {num_unassigned_components - 1} unassigned components...")
+            for j, sam_m in enumerate(results[0].masks):
+                sam_mask = sam_m.data.cpu().numpy().squeeze().astype(np.uint8)
+                overlapping_labels = mask[sam_mask == 1]
+                if overlapping_labels.size == 0:
+                    continue
+                majority_label = np.bincount(overlapping_labels).argmax()
+                refined_mask[sam_mask == 1] = majority_label
 
-        for comp_id in range(1, num_unassigned_components):
-            comp_mask = (unassigned_components == comp_id)
+        # Step 3: Fill missed areas — only for originally labeled regions that were missed
+        originally_labeled = (mask != 0)
+        unassigned = (refined_mask == 0)
+        to_fill = unassigned & originally_labeled  # Only fill if originally labeled
+
+        num_components, comp_map = cv2.connectedComponents(to_fill.astype(np.uint8))
+        for comp_id in range(1, num_components):
+            comp_mask = (comp_map == comp_id)
             original_labels = mask[comp_mask]
             valid_labels = original_labels[original_labels != 0]
-
             if valid_labels.size == 0:
-                continue  # Skip if no valid original label inside component
-
+                continue
             majority_label = np.bincount(valid_labels).argmax()
             refined_mask[comp_mask] = majority_label
 
-        print("[INFO] Refinement complete.")
-
-        # Optional visualization
+        # Step 4: Optional visualization
         if self.visualize:
             self._debug_visualize(image, refined_mask, all_points, all_bboxes)
 
         return refined_mask
-
     def _debug_visualize(self, image, mask, points, bboxes):
         plt.figure(figsize=(10, 8))
         plt.imshow(image)
