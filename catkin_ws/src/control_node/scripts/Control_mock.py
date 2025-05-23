@@ -254,7 +254,7 @@ class MockedControlNode:
 
     # endregion
     
-    def calculate_metrics(self,pred_dir, gt_dir, meter, resize_to=(320, 240), file_ext=".png"):
+    def calculate_metrics(self,pred_dir, gt_dir, meter, resize_to=(320, 240), file_ext=".png",perc=0.8):
         """
         Calculates mIoU, pixel accuracy, and per-class accuracy between prediction and ground truth labels.
 
@@ -276,7 +276,7 @@ class MockedControlNode:
         missing_classes_counter = Counter()
         missing_class_counts = []
         meter.clear()  # Clear previous state
-        num_files = int(len(pred_files) * 0.8)
+        num_files = int(len(pred_files) * perc)
         for f in tqdm(pred_files[:num_files], desc="Evaluating metrics"):
             pred_path = os.path.join(pred_dir, f)
             gt_path = os.path.join(gt_dir, f)
@@ -420,7 +420,7 @@ class MockedControlNode:
             if np.any(np.isinf(pose)):
                 rospy.logwarn("Pose contains infinite values, skipping this pose: %s", pose_path)
                 continue
-
+            
             request = GenerateLabelRequest()
             request.pose = pose
             result = self.generate_srv(request)
@@ -455,9 +455,8 @@ class MockedControlNode:
         Assumes each pseudo label has a matching RGB image with the same filename.
         """
         rospy.loginfo("Initializing SAM2RefinerMixed...")
-        refiner = SAM2RefinerMixed(visualize=False,batch_size=16, skip_labels=[1])  # Default model path assumed
+        refiner = SAM2RefinerMixed(visualize=False,batch_size=16, skip_labels=None,fill_strategy="ereditary")  # Default model path assumed
         w,h = self.image_size
-
         os.makedirs(self.sam_dir, exist_ok=True)
 
         for label_path in tqdm(pseudo_label_files, desc="Refining masks with SAM"):
@@ -467,7 +466,8 @@ class MockedControlNode:
             if not os.path.exists(image_path):
                 rospy.logwarn(f"RGB image not found for label '{filename}', skipping...")
                 continue
-
+           
+            
             image = cv2.imread(image_path)
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             mask = cv2.imread(label_path)
@@ -535,7 +535,7 @@ class MockedControlNode:
 
         # Step 2.5: Refine pseudo-labels with SAM
         sam_refined_dir = self.sam_dir  # You should define this in __init__ or elsewhere
-
+        fps=30
         if os.path.isdir(sam_refined_dir) and os.listdir(sam_refined_dir):  # Directory exists and is not empty
             try:
                 if self.auto_yes:
@@ -553,13 +553,25 @@ class MockedControlNode:
                     if os.path.isfile(file_path):
                         os.remove(file_path)
                 rospy.loginfo("Refining pseudo-labels with SAM...")
-                pseudo_label_files = [os.path.join(pseudo_dir, f) for f in os.listdir(pseudo_dir) if f.endswith(".png")]
+                pseudo_label_files = [
+                os.path.join(pseudo_dir, f)
+                for f in sorted(
+                    [f for f in os.listdir(pseudo_dir) if f.endswith(".png")],
+                    key=lambda x: int(os.path.splitext(x)[0])
+                )[::fps]
+                ]
                 self.refine_with_sam(pseudo_label_files)
             else:
                 rospy.loginfo("Skipping SAM refinement.")
         else:
             rospy.loginfo("SAM refined directory is empty or does not exist. Refining pseudo-labels with SAM...")
-            pseudo_label_files = [os.path.join(pseudo_dir, f) for f in os.listdir(pseudo_dir) if f.endswith(".png")]
+            pseudo_label_files = [
+            os.path.join(pseudo_dir, f)
+            for f in sorted(
+                [f for f in os.listdir(pseudo_dir) if f.endswith(".png")],
+                key=lambda x: int(os.path.splitext(x)[0])
+            )[::fps]
+            ]
             self.refine_with_sam(pseudo_label_files)
         
         # Step 3: Evaluate metrics after pseudo label generation and SAM refinement
@@ -578,7 +590,7 @@ class MockedControlNode:
         miou_sam, acc_sam, class_acc_sam = self.calculate_metrics(
             pred_dir=self.sam_dir,
             gt_dir=self.gt_label_dir,
-            meter=self.meter_gt_sam  # Make sure this exists in your class!
+            meter=self.meter_gt_sam , perc=1 # Make sure this exists in your class!
         )
 
         # Step 4: Log results
