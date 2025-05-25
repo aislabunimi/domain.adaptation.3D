@@ -21,7 +21,7 @@ from tqdm import tqdm
 import imageio.v2 as imageio
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from FastSamRefiner import SAM2RefinerMixed
+from FastSamRefinera import SAM2RefinerMixed
 
 timer = np.float32(0.0)
 
@@ -296,11 +296,13 @@ class MockedControlNode:
             # Resize prediction if needed
             if pred_img.shape[:2] != resize_to[::-1]:
                 #print(f"[INFO] Resizing prediction {f} from {pred_img.shape[::-1]} to {resize_to}")
+                rospy.loginfo_once(f"[INFO] Resizing prediction {f} from {pred_img.shape[::-1]} to {resize_to}")
                 pred_img = cv2.resize(pred_img, resize_to, interpolation=cv2.INTER_NEAREST)
 
             # Resize ground truth if needed
             if gt_img.shape[:2] != resize_to[::-1]:
                 #print(f"[INFO] Resizing ground truth {f} from {gt_img.shape[::-1]} to {resize_to}")
+                rospy.loginfo_once(f"[INFO] Resizing ground truth {f} from {gt_img.shape[::-1]} to {resize_to}")
                 gt_img = cv2.resize(gt_img, resize_to, interpolation=cv2.INTER_NEAREST)
 
             # Convert to int and shift class IDs if needed
@@ -455,7 +457,7 @@ class MockedControlNode:
         Assumes each pseudo label has a matching RGB image with the same filename.
         """
         rospy.loginfo("Initializing SAM2RefinerMixed...")
-        refiner = SAM2RefinerMixed(visualize=False,batch_size=16, skip_labels=None,fill_strategy="ereditary")  # Default model path assumed
+        refiner = SAM2RefinerMixed(visualize=False,batch_size=16, skip_labels=None,fill_strategy="ereditary", skip_max_labels=[1], min_area_ratio=0.001)  # Default model path assumed
         w,h = self.image_size
         os.makedirs(self.sam_dir, exist_ok=True)
 
@@ -535,7 +537,7 @@ class MockedControlNode:
 
         # Step 2.5: Refine pseudo-labels with SAM
         sam_refined_dir = self.sam_dir  # You should define this in __init__ or elsewhere
-        fps=30
+        fps=1
         if os.path.isdir(sam_refined_dir) and os.listdir(sam_refined_dir):  # Directory exists and is not empty
             try:
                 if self.auto_yes:
@@ -590,7 +592,7 @@ class MockedControlNode:
         miou_sam, acc_sam, class_acc_sam = self.calculate_metrics(
             pred_dir=self.sam_dir,
             gt_dir=self.gt_label_dir,
-            meter=self.meter_gt_sam , perc=1 # Make sure this exists in your class!
+            meter=self.meter_gt_sam , perc=0.8 # Make sure this exists in your class!
         )
 
         # Step 4: Log results

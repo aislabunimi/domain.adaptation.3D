@@ -1,0 +1,55 @@
+[submodule "catkin_ws/src/dipendenze_kimera/catkin_boost_python_buildtool"]
+    path = catkin_ws/src/dipendenze_kimera/catkin_boost_python_buildtool
+    url = https://github.com/ethz-asl/catkin_boost_python_buildtool
+
+[submodule "catkin_ws/src/dipendenze_kimera/catkin_simple"]
+    path = catkin_ws/src/dipendenze_kimera/catkin_simple
+    url = https://github.com/catkin/catkin_simple
+
+[submodule "catkin_ws/src/dipendenze_kimera/disparity_image_proc"]
+    path = catkin_ws/src/dipendenze_kimera/disparity_image_proc
+    url = https://github.com/skohlbr/disparity_image_proc
+
+[submodule "catkin_ws/src/dipendenze_kimera/eigen_catkin"]
+    path = catkin_ws/src/dipendenze_kimera/eigen_catkin
+    url = https://github.com/ethz-asl/eigen_catkin
+
+[submodule "catkin_ws/src/dipendenze_kimera/eigen_checks"]
+    path = catkin_ws/src/dipendenze_kimera/eigen_checks
+    url = https://github.com/ethz-asl/eigen_checks
+
+[submodule "catkin_ws/src/dipendenze_kimera/gflags_catkin"]
+    path = catkin_ws/src/dipendenze_kimera/gflags_catkin
+    url = https://github.com/ethz-asl/gflags_catkin
+
+[submodule "catkin_ws/src/dipendenze_kimera/glog_catkin"]
+    path = catkin_ws/src/dipendenze_kimera/glog_catkin
+    url = https://github.com/ethz-asl/glog_catkin
+
+[submodule "catkin_ws/src/dipendenze_kimera/minkindr"]
+    path = catkin_ws/src/dipendenze_kimera/minkindr
+    url = https://github.com/ethz-asl/minkindr
+
+[submodule "catkin_ws/src/dipendenze_kimera/minkindr_ros"]
+    path = catkin_ws/src/dipendenze_kimera/minkindr_ros
+    url = https://github.com/ethz-asl/minkindr_ros
+
+[submodule "catkin_ws/src/dipendenze_kimera/numpy_eigen"]
+    path = catkin_ws/src/dipendenze_kimera/numpy_eigen
+    url = https://github.com/ethz-asl/numpy_eigen
+
+[submodule "catkin_ws/src/dipendenze_kimera/protobuf_catkin"]
+    path = catkin_ws/src/dipendenze_kimera/protobuf_catkin
+    url = https://github.com/ethz-asl/protobuf_catkin
+
+[submodule "catkin_ws/src/dipendenze_kimera/voxblox"]
+    path = catkin_ws/src/dipendenze_kimera/voxblox
+    url = https://github.com/ethz-asl/voxblox
+
+[submodule "catkin_ws/src/Kimera-Semantics"]
+    path = catkin_ws/src/Kimera-Semantics
+    url = https://github.com/JonasFrey96/Kimera-Semantics
+
+[submodule "catkin_ws/src/orocos_kinematics_dynamics"]
+    path = catkin_ws/src/orocos_kinematics_dynamics
+    url = https://github.com/orocos/orocos_kinematics_dynamics
