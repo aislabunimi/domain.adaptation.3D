@@ -20,7 +20,7 @@ This project provides a ROS-based pipeline for unsupervised continual domain ada
 > **Paper & Code References:**
 > - _Unsupervised Continual Semantic Adaptation through Neural Rendering_  
 >   Zhizheng Liu, Francesco Milano, Jonas Frey, Roland Siegwart, Hermann Blum, Cesar Cadena  
-> - [Jonas Frey's Kimera Interfacer](https://github.com/JonasFrey/kimera_interfacer)
+> - [Jonas Frey's Kimera Interfacer](https://github.com/JonasFrey96/Kimera-Interfacer)
 > - [ETHZ-ASL DeepLabV3 model](https://www.research-collection.ethz.ch/handle/20.500.11850/637142)
 
 ---
@@ -40,6 +40,7 @@ IO_pipeline/
         │   ├── deeplab_labels_colored/
         │   ├── depth/
         │   ├── intrinsic/
+        |   ...
 ```
 
 ---
