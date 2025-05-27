@@ -167,17 +167,28 @@ class SAM2RefinerFast:
 
         plt.tight_layout()
         plt.show()
-
     def _debug_visualize(self, image, mask, points, bboxes):
+        def create_label_colormap():
+            # Generate 256 distinct colors
+            np.random.seed(42)  # Fixed seed for reproducibility
+            colormap = np.random.randint(0, 255, (256, 3), dtype=np.uint8)
+            colormap[0] = [0, 0, 0]  # Background stays black
+            return colormap
+
+        colormap = create_label_colormap()
+        color_mask = colormap[mask]
+
+        # Blend original image with color mask
+        blended = cv2.addWeighted(image, 0.6, color_mask, 0.4, 0)
+
         plt.figure(figsize=(10, 8))
-        plt.imshow(image)
+        plt.imshow(blended)
         for (x, y) in points:
             plt.plot(x, y, 'ro', markersize=3)
         for (x1, y1, x2, y2) in bboxes:
             plt.gca().add_patch(plt.Rectangle((x1, y1), x2 - x1, y2 - y1,
-                                              edgecolor='lime', facecolor='none', linewidth=1))
-        plt.imshow(mask, alpha=0.4, cmap='jet')
-        plt.title("Refinement Debug View")
+                                            edgecolor='lime', facecolor='none', linewidth=1))
+        plt.title("Refined Mask Overlay")
         plt.axis("off")
         plt.tight_layout()
         plt.show()

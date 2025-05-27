@@ -1,6 +1,6 @@
 <launch>
     <!-- Main args -->
-    <arg name="scene_number" default="0000_00" />
+    <arg name="scene_number" default="0003_00" />
     <arg name="data_root" default="/media/adaptation/New_volume/Domain_Adaptation_Pipeline/IO_pipeline/Scannet_DB/scans/scene$(arg scene_number)" />
     <arg name="kimera_int_out_dir" default="/media/adaptation/New_volume/Domain_Adaptation_Pipeline/IO_pipeline/Pipeline/Output_kimera_mesh" />
     <arg name="voxel_size" default="0.03"/>
