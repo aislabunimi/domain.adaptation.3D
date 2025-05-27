@@ -9,6 +9,7 @@ This repository provides a ROS-based pipeline for unsupervised continual domain 
 - Label refinement using **Segment Anything Model (SAM)**
 - Semantic segmentation fine-tuning with **DeepLabV3**
 
+![Pipeline Diagram](diagram.png)
 
 # Installation & Setup Guide
 
@@ -189,7 +190,7 @@ source devel/setup.bash
 Create NYU40-compatible DeepLabV3 predictions:
 
 ```bash
-cd ../TestScripts
+cd ../Domain_Adaptation_Pipeline/domain.adaptation.3d/TestScripts
 python GenerateAllLabels.py
 ```
 

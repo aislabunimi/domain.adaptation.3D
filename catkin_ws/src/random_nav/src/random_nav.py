@@ -4,7 +4,7 @@ import random
 import numpy as np
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import Image as SensorImage
-from TestScripts.PILBridge import PILBridge
+from Modules.PILBridge import PILBridge
 
 class RandomNavigator:
     def __init__(self):

@@ -14,7 +14,7 @@ from label_generator_ros.srv import InitLabelGenerator, GenerateLabel, GenerateL
 from LabelElaborator import LabelElaborator
 from Modules import PILBridge
 import time
-from metrics import SemanticsMeter
+from Metrics import SemanticsMeter
 from collections import Counter
 import tf2_ros
 from tqdm import tqdm
