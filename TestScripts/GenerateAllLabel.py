@@ -13,8 +13,7 @@ import time
 class SceneProcessor:
     def __init__(self, base_path="/media/adaptation/New_volume/Domain_Adaptation_Pipeline"):
         self.base_path = base_path
-        self.mapping_path = os.path.join(base_path, 
-                                      "domain.adaptation.3D/catkin_ws/src/control_node/cfg/nyu40_segmentation_mapping.csv")
+        self.mapping_path = os.path.join(base_path, "domain.adaptation.3D/catkin_ws/src/control_node/cfg/nyu40_segmentation_mapping.csv")
         self.pending_frames = {}
         self.current_scene = None
         self.progress_bar = None
@@ -43,10 +42,8 @@ class SceneProcessor:
                 
                 # Prepare output directories
                 output_paths = {
-                    'labels': os.path.join(self.base_path, 
-                                         f"IO_pipeline/Scannet_DB/scans/scene{scene_str}_00/deeplab_labels"),
-                    'colored': os.path.join(self.base_path,
-                                          f"IO_pipeline/Scannet_DB/scans/scene{scene_str}_00/deeplab_labels_colored")
+                    'labels': os.path.join(self.base_path, f"IO_pipeline/Scannet_DB/scans/scene{scene_str}_00/deeplab_labels"),
+                    'colored': os.path.join(self.base_path, f"IO_pipeline/Scannet_DB/scans/scene{scene_str}_00/deeplab_labels_colored")
                 }
 
                 for path in output_paths.values():
@@ -72,18 +69,16 @@ class SceneProcessor:
         self.current_scene = scene_num
         self.pending_frames = {}  # Clear previous scene's pending frames
 
-        input_dir = os.path.join(self.base_path, 
-                               f"IO_pipeline/Scannet_DB/scans/scene{scene_str}_00/color")
+        input_dir = os.path.join(self.base_path, f"IO_pipeline/Scannet_DB/scans/scene{scene_str}_00/color")
         
         if not os.path.exists(input_dir):
-            print(f"⚠️ Input directory not found: {input_dir}")
+            print(f"Input directory not found: {input_dir}")
             return False
 
-        img_files = sorted([f for f in os.listdir(input_dir) if f.endswith(".jpg")],
-                         key=lambda x: int(x.split('.')[0]))
+        img_files = sorted([f for f in os.listdir(input_dir) if f.endswith(".jpg")],key=lambda x: int(x.split('.')[0]))
         
         if not img_files:
-            print(f"⚠️ No JPG images found in {input_dir}")
+            print(f"No JPG images found in {input_dir}")
             return False
 
         # Initialize progress bar
@@ -122,10 +117,8 @@ class SceneProcessor:
 
 def main():
     parser = argparse.ArgumentParser(description='Process ScanNet scenes')
-    parser.add_argument('--scenes', type=str, required=True,
-                      help='Scene numbers (comma-separated or range, e.g. "1,2,5" or "1-5")')
-    parser.add_argument('--base_path', type=str, default="/media/adaptation/New_volume/Domain_Adaptation_Pipeline",
-                      help='Base path for data directories')
+    parser.add_argument('--scenes', type=str, required=True, help='Scene numbers (comma-separated or range, e.g. "1,2,5" or "1-5")')
+    parser.add_argument('--base_path', type=str, default="/media/adaptation/New_volume/Domain_Adaptation_Pipeline", help='Base path for data directories')
     args = parser.parse_args()
 
     # Parse scene numbers
@@ -147,9 +140,9 @@ def main():
         success = processor.process_scene(scene_num)
         
         if not success:
-            print(f"⚠️ Failed to process scene {scene_num:04d}")
+            print(f"Failed to process scene {scene_num:04d}")
         else:
-            print(f"✅ Successfully processed scene {scene_num:04d}")
+            print(f"Successfully processed scene {scene_num:04d}")
 
     rospy.signal_shutdown("All scenes processed")
 
