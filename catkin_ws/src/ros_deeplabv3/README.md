@@ -1,43 +1,43 @@
-# Ros Deeplab V3
+# ROS DeepLabV3 Package
 
-Questo pacchetto contiene due nodi principali:
+This package provides two main ROS nodes for real-time semantic segmentation and model fine-tuning using DeepLabV3:
 
-- `deeplab_segmenter`: esegue segmentazione semantica in tempo reale su immagini.
-- `deeplab_finetune_service`: espone un servizio ROS per effettuare il fine-tuning del modello DeepLabV3 con un dataset personalizzato.
+- `deeplab_segmenter`: Performs real-time semantic segmentation on incoming images.
+- `deeplab_finetune_service`: Exposes a ROS service to fine-tune the DeepLabV3 model.
 
 ---
 
-## `deeplab_segmenter`
+## Node: `deeplab_segmenter`
 
-### Funzione
-Segmenta semanticamente immagini ricevute in tempo reale utilizzando un modello DeepLabV3 pre-addestrato (o fine-tunato).
+### Description
+Performs semantic segmentation in real-time using a pretrained or fine-tuned DeepLabV3 model.
 
 ### Input
-- **Topic:** `/camera/image_raw`
-- **Tipo:** `sensor_msgs/Image`
-- **Descrizione:** Immagine RGB.
+- **Topic:** `/camera/image_raw`  
+- **Type:** `sensor_msgs/Image`  
+- **Description:** Input RGB image stream.
 
 ### Output
-- **Topic:** `/deeplab/segmented_image`
-- **Tipo:** `sensor_msgs/Image` (mono8)
-- **Descrizione:** Mappa di segmentazione semanticamente etichettata.
+- **Topic:** `/deeplab/segmented_image`  
+- **Type:** `sensor_msgs/Image` (`mono8`)  
+- **Description:** Output segmentation map, with each pixel labeled according to the predicted semantic class.
 
 ---
 
-## `deeplab_finetune_service`
+## Service Node: `deeplab_finetune_service`
 
-### Funzione
-Fornisce un servizio ROS che permette di fine-tunare il modello DeepLabV3 su un nuovo dataset costituito da immagini e maschere di segmentazione.
+### Description
+Provides a ROS service to fine-tune the DeepLabV3 model on a new dataset of images and segmentation masks.
 
-### Servizio
-- **Nome:** `/deeplab_finetune`
-- **Tipo:** `Finetune.srv`
+### Service Details
+- **Service Name:** `/deeplab_finetune`  
+- **Service Type:** `Finetune.srv`
 
-#### Struttura `Finetune.srv`
+#### `Finetune.srv` Definition
 ```srv
-string dataset_path        # Directory con le immagini (RGB)
-uint32 num_epochs          # Numero di epoche per il fine-tuning
-uint32 num_classes         # Numero di classi semanticamente etichettate
+string dataset_path        # Path to directory containing training images and masks
+uint32 num_epochs          # Number of training epochs
+uint32 num_classes         # Number of semantic classes
 ---
-bool success               # Esito del fine-tuning
-string message             # Messaggio di ritorno
+bool success               # Indicates whether fine-tuning completed successfully
+string message             # Informational or error message

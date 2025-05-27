@@ -36,6 +36,7 @@ It sets up a simulation with an agent equipped with:
 - **`/habitat/semantic`** (`sensor_msgs/Image`):  
   RGB image representing the semantic view from the agent's semantic sensor.
 
+
 ---
 
 ## 🛠 Custom Message: `Sensors.msg`

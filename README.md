@@ -1,21 +1,254 @@
-# Domain-Adaptation-Pipeline
-<p align="center">
-  <img src="diagram.png" alt="System Diagram" width="500"/>
-</p>
+# 3D Domain Adaptation Pipeline
 
-### Checklist
-- [x] Mesh creation node – **written**, **tested**, **integrated**, **documented**
-- [x] RayTracing node – **written**, **tested**, **integrated**, **documented**
-- [x] Habitat bridge env – **written**, **tested**, **integrated**, **documented**
-- [x] Deeplab node labels – **written**, **tested**, **integrated**, **documented**
-- [ ] Deeplab node finetune – **written**, _not tested_, **integrated**, **documented**
-- [ ] Control node – **written**, **tested**, **integrated**, _not documented_
-- [ ] Final test – _not done_
+## Overview
+
+This repository provides a ROS-based pipeline for unsupervised continual domain adaptation in 3D environments using ScanNet data. It includes 3D mesh reconstruction, pseudo-label generation using ray casting, label refinement via Segment Anything Model (SAM), and preparation for DeepLabV3-based semantic segmentation fine-tuning.
+
+- 3D mesh reconstruction using **Kimera**
+- Pseudo-label generation via **ray casting**
+- Label refinement using **Segment Anything Model (SAM)**
+- Semantic segmentation fine-tuning with **DeepLabV3**
+
+![Pipeline Diagram](diagram.png)
+
+# Installation & Setup Guide
+
+## System Requirements
+
+- **Operating System**: Ubuntu 20.04 (required due to ROS Noetic)
+- **ROS**: Noetic
+- **GPU**: CUDA-enabled GPU (tested on NVIDIA RTX 3060)
+- **Python**: 3.8 (via Conda environment recommended)
 
 
-# Description
+## ROS Noetic Installation
 
-This project provides a ROS-based pipeline for unsupervised continual domain adaptation in 3D environments using ScanNet data. It generates a 3D mesh, extracts pseudo-labels from the mesh, refines them using SAM (Segment Anything Model), and prepares the data for DeepLabV3-based semantic segmentation finetuning.
+Follow official instructions to install ROS Noetic:  
+https://wiki.ros.org/noetic/Installation/Ubuntu
+
+## ScanNet Dataset
+
+We use the ScanNet dataset for this project. To download the ScanNet data and the corresponding NYU40 labels, please use the helper repository:
+
+https://github.com/micheleantonazzi/ros_visual_datasets
+
+To simplify the integration with this repository and avoid modifying the launch files, we recommend recreating the following directory structure on your system while downloading the ScanNet dataset. This structure ensures minimal changes to the configuration files:
+
+```
+Domain_Adaptation_Pipeline/
+├── IO_pipeline/
+│   ├── Pipeline/
+│   │   └── Output_kimera_mesh/
+│   ├── PseudoLabels/
+│   └── Scannet_DB/
+│       └── scans/
+│           ├── scene0000_00/
+│           │   ├── color/
+│           │   ├── deeplab_labels/
+│           │   ├── deeplab_labels_colored/
+│           │   ├── depth/
+│           │   ├── intrinsic/
+│           │   └── ...
+│
+└── domain.adaptation.3D(this repo)/
+```
+
+This setup provides a clean starting point and organizes the data consistently with the pipeline expectations. Further instructions on how to adjust paths in the launch files will follow in the appropriate sections.
+
+## Conda Environment Setup
+
+We recommend using a clean Conda environment to prevent conflicts between base and project-specific dependencies.
+
+```bash
+conda create -n domainadapt3d python=3.8
+conda activate domainadapt3d
+```
+
+## Install Python Dependencies
+
+Install the required packages inside the Conda environment:
+
+```bash
+# Conda packages
+conda install -c conda-forge imageio pyyaml opencv scipy open3d
+conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
+
+# Pip packages (within the conda env)
+pip install catkin_pkg rospkg trimesh embreex ultralytics
+```
+
+Outside the Conda environment:
+
+```bash
+pip3 install empy==3.3.4
+sudo apt install pykdl
+```
+
+Then install Catkin tools:
+
+```bash
+sudo apt install python3-catkin-tools python3-osrf-pycommon
+```
+
+## Clone the Project
+
+```bash
+git clone --recurse-submodules https://github.com/aislabunimi/domain.adaptation.3D
+cd domain.adaptation.3D/catkin_ws
+```
+
+Add the project to your Python path:
+
+```bash
+export PYTHONPATH=/path/to/domain.adaptation.3D/catkin_ws/src:$PYTHONPATH
+```
+
+## Modifications to Kimera Semantics
+
+Modify the following files:
+
+### In `kimera_semantics_ros/src/semantic_tsdf_server.cpp`
+
+Replace constructor definitions with:
+
+```cpp
+namespace kimera {
+
+SemanticTsdfServer::SemanticTsdfServer(const ros::NodeHandle& nh,
+                                       const ros::NodeHandle& nh_private,
+                                       bool verbose)
+    : SemanticTsdfServer(nh,
+                         nh_private,
+                         vxb::getTsdfMapConfigFromRosParam(nh_private),
+                         vxb::getTsdfIntegratorConfigFromRosParam(nh_private),
+                         vxb::getMeshIntegratorConfigFromRosParam(nh_private),
+                         verbose) {}
+
+SemanticTsdfServer::SemanticTsdfServer(
+    const ros::NodeHandle& nh,
+    const ros::NodeHandle& nh_private,
+    const vxb::TsdfMap::Config& config,
+    const vxb::TsdfIntegratorBase::Config& integrator_config,
+    const vxb::MeshIntegratorConfig& mesh_config,
+    bool verbose)
+    : vxb::TsdfServer(nh, nh_private, config, integrator_config, mesh_config),
+      semantic_config_(getSemanticTsdfIntegratorConfigFromRosParam(nh_private)),
+      semantic_layer_(nullptr) {
+
+  verbose_ = verbose;
+
+  semantic_layer_.reset(new vxb::Layer<SemanticVoxel>(
+      config.tsdf_voxel_size, config.tsdf_voxels_per_side));
+
+  tsdf_integrator_ =
+      SemanticTsdfIntegratorFactory::create(
+        getSemanticTsdfIntegratorTypeFromRosParam(nh_private),
+        integrator_config,
+        semantic_config_,
+        tsdf_map_->getTsdfLayerPtr(),
+        semantic_layer_.get());
+
+  CHECK(tsdf_integrator_);
+}
+```
+
+### In `kimera_semantics_ros/include/kimera_semantics_ros/semantic_tsdf_server.h`
+
+Replace main content with:
+
+```cpp
+#include "kimera_semantics_ros/semantic_tsdf_server.h"
+
+int main(int argc, char** argv) {
+  ros::init(argc, argv, "kimera_semantics");
+
+  google::InitGoogleLogging(argv[0]);
+  google::ParseCommandLineFlags(&argc, &argv, false);
+  google::InstallFailureSignalHandler();
+
+  ros::NodeHandle nh;
+  ros::NodeHandle nh_private("~");
+
+  kimera::SemanticTsdfServer node(nh, nh_private);
+
+  ros::spin();
+
+  return EXIT_SUCCESS;
+}
+```
+
+## Build ROS Packages
+
+```bash
+catkin build kimera_interfacer
+catkin build control_node
+catkin build label_generator_ros
+
+source devel/setup.bash
+```
+
+Create NYU40-compatible DeepLabV3 predictions:
+
+```bash
+cd ../Domain_Adaptation_Pipeline/domain.adaptation.3d/TestScripts
+python GenerateAllLabels.py
+```
+
+You can add '--scene=00002' and '--base_path=path/to/Domain_Adaptation_Pipeline' args to specify the scene number and the correct path.
+
+## Run the Full Pipeline
+
+Before launching the full pipeline modify `catkin_ws/src/control_node/launch/start_mock.launch` to configure:
+
+- Scene number
+- Input/output paths
+- Voxel size
+
+To simulate a full scene pipeline:
+
+```bash
+roslaunch control_node start_mock.launch
+```
+
+## Notes on Protobuf
+
+ROS is not compatible with recent versions of `protoc`. If you have a newer version installed:
+
+```bash
+sudo apt remove libprotobuf-dev protobuf-compiler
+```
+
+Install version 3.15.8 manually:
+
+```bash
+wget https://github.com/protocolbuffers/protobuf/releases/download/v3.15.8/protobuf-all-3.15.8.tar.gz
+tar -xzf protobuf-all-3.15.8.tar.gz
+cd protobuf-3.15.8
+./configure
+make -j$(nproc)
+sudo make install
+sudo ldconfig
+```
+
+Verify:
+
+```bash
+protoc --version
+```
+
+Also, check your Conda base environment for `libprotobuf` conflicts. Rebuild proto files in Kimera if needed:
+
+```bash
+cd catkin_ws/src/kimera_semantics_ros/include/proto/
+protoc --cpp_out=. semantic_map.proto
+```
+
+## Troubleshooting
+
+- Ensure `numpy` is not imported from the base Conda env to avoid conflicts.
+- Check `PYTHONPATH` ordering if packages are not found.
+- Always `source devel/setup.bash` after building or modifying any code.
+
 
 > **Paper & Code References:**
 > - _Unsupervised Continual Semantic Adaptation through Neural Rendering_  
@@ -23,121 +256,10 @@ This project provides a ROS-based pipeline for unsupervised continual domain ada
 > - [Jonas Frey's Kimera Interfacer](https://github.com/JonasFrey96/Kimera-Interfacer)
 > - [ETHZ-ASL DeepLabV3 model](https://www.research-collection.ethz.ch/handle/20.500.11850/637142)
 
----
 
-## 📁 Repository Structure
+## Citation
 
-```
-IO_pipeline/
-├── Pipeline/
-│   └── Output_kimera_mesh/
-├── PseudoLabels/
-└── Scannet_DB/
-    └── scans/
-        ├── scene0000_00/
-        │   ├── color/
-        │   ├── deeplab_labels/
-        │   ├── deeplab_labels_colored/
-        │   ├── depth/
-        │   ├── intrinsic/
-        |   ...
-```
-
----
-
-## 🧩 Features
-
-- ROS 1 Noetic integration (Ubuntu 20.04)
-- DeepLabV3 segmentation with automatic preprocessing
-- Label generation via ray casting and SAM
-- Mocked control node to simulate and test pipeline behavior
-- Output pseudo-labels are stored in ScanNet-like structure
-- Designed for GPU-based acceleration (tested on RTX 3060)
-
----
-
-## 🚀 Quick Start
-
-### 1. Clone the repository
-
-```bash
-git clone https://github.com/aislabunimi/domain.adaptation.3D
-cd domain.adaptation.3D/catkin_ws
-catkin build
-source devel/setup.bash
-```
-
-### 2. Install Dependencies
-
-- Ubuntu 20.04
-- ROS Noetic
-- Python >= 3.13.2
-- PyTorch 2.4.1 + CUDA 12.1
-- [ScanNet](http://www.scan-net.org/) dataset (placed inside `IO_pipeline/Scannet_DB/scans/`)
-
-### 3. Preprocess Input Labels
-
-Create DeepLab predictions for NYU40-compatible format:
-
-```bash
-python generate_all_labels.py --scenes 0-5
-```
-
-You can find the script to download the scannet database and the GTs: [ros_visual_datasets](https://github.com/micheleantonazzi/ros_visual_datasets)
-
-### 4. Launch the Pipeline
-
-Use the mock control node to simulate full pipeline:
-
-```bash
-roslaunch control_node start_mock.launch scene_number:=0005_00
-```
-
-Modify `start_mock.launch` to change:
-- Scene
-- Paths
-- Voxel size
-- Input/Output folders
-
----
-
-## ⚙️ Components
-
-### 🔧 Control Node (Mock)
-
-Launches the full pipeline with the following responsibilities:
-- Loads ScanNet RGBD data
-- Runs Kimera meshing and saves mesh/serialization
-- Generates raycast-based pseudo-labels
-- Applies SAM segmentation for refinement
-- Outputs stored as: `sam_{voxel_size}` inside the scene folder
-
-### 🧠 Model Checkpoint
-
-- Using [ETHZ-ASL DeepLabV3](https://www.research-collection.ethz.ch/handle/20.500.11850/637142/best-epoch143-step175536.ckpt) converted to `.pth`.
-
----
-
-## 📦 Output Description
-
-For each scene, you will get:
-- `deeplab_labels/` — Raw labels from DeepLab
-- `deeplab_labels_colored/` — RGB visualization
-- `pseudo_labels_{voxel_size}/` — Pseudo-labels from raycasting
-- `sam_{voxel_size}/` — SAM-refined labels
-
----
-
-## 🧪 Future Work
-
-- Finetuning DeepLabV3 automatically on the generated labels (pipeline-ready)
-- Continuous online adaptation loop (WIP)
-
----
-
-## 📝 Citation
-
-If you use this codebase, please cite:
+If you use this codebase, cite the following work:
 
 ```bibtex
 @article{liu2024unsupervised,
@@ -147,16 +269,3 @@ If you use this codebase, please cite:
   year={2024}
 }
 ```
-
----
-
-## 🔗 Related Repos
-
-- [kimera_interfacer](https://github.com/JonasFrey/kimera_interfacer)
-- [ros_visual_datasets](https://github.com/micheleantonazzi/ros_visual_datasets)
-
----
-
-## 💬 Contact
-
-For issues or questions, feel free to open an issue or contact the maintainers.
