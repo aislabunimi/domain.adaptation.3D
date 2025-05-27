@@ -2,82 +2,84 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from ultralytics import SAM
-from InnerBoxFinder import InnerBoxFinder
 
 class SAM2RefinerMixed:
-    def __init__(self, model_path="sam2_b.pt", visualize=True, skip_labels=None,
-                 batch_size=8, fill_strategy="maxlabel"):
+    def __init__(
+        self,
+        model_path: str = "sam2_b.pt",
+        visualize: bool = True,
+        skip_labels: list = None,
+        skip_max_labels: list = None,
+        batch_size: int = 8,
+        fill_strategy: str = "ereditary",
+        min_area_ratio: float = None
+    ):
+        """
+        Args:
+            model_path: Path to the SAM model checkpoint.
+            visualize: Whether to show debug plots.
+            skip_labels: Labels to completely ignore.
+            skip_max_labels: Labels to assign SAM output directly (skip majority voting).
+            batch_size: Batch size for SAM predictions.
+            fill_strategy: "maxlabel" (most common label) or "ereditary" (fallback to original mask).
+            min_area_ratio: Minimum component area (relative to image) to consider.
+        """
         self.model = SAM(model_path)
         self.visualize = visualize
-        self.skip_labels = skip_labels or []
+        self.skip_labels = skip_labels if skip_labels else []
+        self.skip_max_labels = skip_max_labels if skip_max_labels else []
         self.batch_size = batch_size
         assert fill_strategy in ("maxlabel", "ereditary"), "Invalid fill strategy"
         self.fill_strategy = fill_strategy
+        self.min_area_ratio = min_area_ratio
 
     def refine(self, image: np.ndarray, mask: np.ndarray) -> np.ndarray:
         refined_mask = np.zeros_like(mask, dtype=np.uint8)
         unique_labels = np.unique(mask)
+        image_area = image.shape[0] * image.shape[1]
 
         all_points = []
         all_bboxes = []
         prompt_labels = []
-        all_rects = []
+        comp_masks = []
 
-        finder = InnerBoxFinder(debug=False)
-
+        # Step 1: Collect prompts
         for label in unique_labels:
             if label == 0 or label in self.skip_labels:
                 continue
 
             binary_mask = (mask == label).astype(np.uint8)
             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
-            dilated_mask = cv2.dilate(binary_mask, kernel, iterations=1)
-            num_components, components = cv2.connectedComponents(dilated_mask)
+            dilated = cv2.dilate(binary_mask, kernel, iterations=1)
+            num_components, components = cv2.connectedComponents(dilated)
 
             for comp_id in range(1, num_components):
                 comp_mask = (components == comp_id).astype(np.uint8)
-                ys, xs = np.where(comp_mask)
-                if len(xs) == 0 or len(ys) == 0:
+                area = np.sum(comp_mask)
+                if self.min_area_ratio is not None and area < image_area * self.min_area_ratio:
                     continue
 
-                x0, y0, x1, y1 = xs.min(), ys.min(), xs.max(), ys.max()
-                                # Crop original and component masks to the bounding box
-                cropped_original_mask = binary_mask[y0:y1+1, x0:x1+1]
-                cropped_comp_mask = comp_mask[y0:y1+1, x0:x1+1]
+                ys, xs = np.where(comp_mask == 1)
+                if len(xs) == 0:
+                    continue
 
-                # Intersection: keep only areas present in both
-                intersection_mask = np.logical_and(cropped_original_mask, cropped_comp_mask).astype(np.uint8)
-
-                # Find centroid and inner box in intersection only
-                centroid, rect = finder.find_largest_inner_box(intersection_mask)
-
-                if centroid is not None:
-                    cx, cy = centroid[0] + x0, centroid[1] + y0
-                    rect = (rect[0] + x0, rect[1] + y0, rect[2], rect[3])
-                else:
-                    # Fallback to median of points in the intersection
-                    ys_int, xs_int = np.where(intersection_mask)
-                    if len(xs_int) == 0 or len(ys_int) == 0:
-                        continue  # Skip if no valid intersection
-                    cx, cy = int(np.median(xs_int)) + x0, int(np.median(ys_int)) + y0
-                    rect = None
-
-                x_bb, y_bb, w_bb, h_bb = cv2.boundingRect(comp_mask)
-                bbox = [x_bb, y_bb, x_bb + w_bb, y_bb + h_bb]
-
+                cx, cy = int(np.median(xs)), int(np.median(ys))
+                x, y, w, h = cv2.boundingRect(comp_mask)
                 all_points.append([cx, cy])
-                all_bboxes.append(bbox)
-                all_rects.append(rect)
+                all_bboxes.append([x, y, x + w, y + h])
                 prompt_labels.append(label)
+                comp_masks.append(comp_mask)
 
         if not all_points:
             print("[WARN] No valid prompts found.")
             return mask.copy()
 
+        # Step 2: SAM predictions in batches
         for i in range(0, len(all_points), self.batch_size):
             points_batch = all_points[i:i + self.batch_size]
             bboxes_batch = all_bboxes[i:i + self.batch_size]
             labels_batch = prompt_labels[i:i + self.batch_size]
+            comps_batch = comp_masks[i:i + self.batch_size]
 
             try:
                 results = self.model.predict(
@@ -95,13 +97,27 @@ class SAM2RefinerMixed:
 
             for j, sam_m in enumerate(results[0].masks):
                 sam_mask = sam_m.data.cpu().numpy().squeeze().astype(np.uint8)
-                overlapping_labels = mask[sam_mask == 1]
-                if overlapping_labels.size == 0:
-                    continue
-                majority_label = np.bincount(overlapping_labels).argmax()
-                refined_mask[sam_mask == 1] = majority_label
 
-        # Fill unassigned pixels
+                # If label in skip_max_labels: assign SAM mask directly
+                if labels_batch[j] in self.skip_max_labels:
+                    refined_mask[sam_mask == 1] = labels_batch[j]
+                else:
+                    overlapping_labels = mask[sam_mask == 1]
+                    if overlapping_labels.size == 0:
+                        continue
+                    majority_label = np.bincount(overlapping_labels).argmax()
+                    refined_mask[sam_mask == 1] = majority_label
+
+                if self.visualize:
+                    self._debug_per_prompt(
+                        image,
+                        comps_batch[j],
+                        points_batch[j],
+                        bboxes_batch[j],
+                        sam_mask
+                    )
+
+        # Step 3: Fill unassigned areas
         originally_labeled = (mask != 0)
         unassigned = (refined_mask == 0)
         to_fill = unassigned & originally_labeled
@@ -116,40 +132,50 @@ class SAM2RefinerMixed:
                     continue
                 majority_label = np.bincount(valid_labels).argmax()
                 refined_mask[comp_mask] = majority_label
-        else:  # eredetary
+
+        elif self.fill_strategy == "ereditary":
             refined_mask[to_fill] = mask[to_fill]
 
+        # Step 4: Final visualization
         if self.visualize:
-            self._debug_visualize(image, refined_mask, all_points, rects=None, bboxes=all_bboxes)
+            self._debug_visualize(image, refined_mask, all_points, all_bboxes)
 
         return refined_mask
 
-    def _debug_visualize(self, image, mask, points=None, rects=None, bboxes=None):
+    def _debug_per_prompt(self, image, comp_mask, point, bbox, sam_mask):
+        cx, cy = point
+        x1, y1, x2, y2 = bbox
+
+        fig, axes = plt.subplots(1, 3, figsize=(12, 4))
+        axes[0].imshow(comp_mask, cmap='gray')
+        axes[0].plot(cx, cy, 'ro')
+        axes[0].add_patch(plt.Rectangle((x1, y1), x2 - x1, y2 - y1,
+                                        edgecolor='lime', facecolor='none', linewidth=1))
+        axes[0].set_title("Original Component")
+        axes[0].axis('off')
+
+        axes[1].imshow(image)
+        axes[1].plot(cx, cy, 'ro')
+        axes[1].add_patch(plt.Rectangle((x1, y1), x2 - x1, y2 - y1,
+                                        edgecolor='lime', facecolor='none', linewidth=1))
+        axes[1].set_title("Prompt on Image")
+        axes[1].axis('off')
+
+        axes[2].imshow(sam_mask, cmap='gray')
+        axes[2].set_title("SAM Output")
+        axes[2].axis('off')
+
+        plt.tight_layout()
+        plt.show()
+
+    def _debug_visualize(self, image, mask, points, bboxes):
         plt.figure(figsize=(10, 8))
         plt.imshow(image)
-
-        if points:
-            for point in points:
-                if point:
-                    x, y = point
-                    plt.plot(x, y, 'ro', markersize=3)
-
-        if rects:
-            for rect in rects:
-                if rect:
-                    x, y, w, h = rect
-                    plt.gca().add_patch(
-                        plt.Rectangle((x, y), w, h, edgecolor='cyan', facecolor='none', linewidth=1)
-                    )
-
-        if bboxes:
-            for bbox in bboxes:
-                if bbox:
-                    x1, y1, x2, y2 = bbox
-                    plt.gca().add_patch(
-                        plt.Rectangle((x1, y1), x2 - x1, y2 - y1, edgecolor='lime', facecolor='none', linewidth=1)
-                    )
-
+        for (x, y) in points:
+            plt.plot(x, y, 'ro', markersize=3)
+        for (x1, y1, x2, y2) in bboxes:
+            plt.gca().add_patch(plt.Rectangle((x1, y1), x2 - x1, y2 - y1,
+                                              edgecolor='lime', facecolor='none', linewidth=1))
         plt.imshow(mask, alpha=0.4, cmap='jet')
         plt.title("Refinement Debug View")
         plt.axis("off")
