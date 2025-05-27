@@ -85,7 +85,3 @@ The fill strategy determines how each segmented mask is assigned a semantic labe
   - For selected critical classes, majority voting is avoided.
   - Instead, a predefined label is enforced to mitigate damage caused by segmentation errors.
   - Helps preserve important classes that may be small or error-prone.
-
----
-
-These strategies allow fine-tuning of SAM's behavior when adapting it to semantic segmentation tasks, helping reduce noise, mislabeling, and over-segmentation.
