@@ -21,7 +21,7 @@ from tqdm import tqdm
 import imageio.v2 as imageio
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from FastSamRefinera import SAM2RefinerMixed
+from AutomaticSamRefiner import FastSamRefinerAuto
 
 timer = np.float32(0.0)
 
@@ -451,15 +451,28 @@ class MockedControlNode:
             self.ray_cast_pub.publish(colored_pseudo_msg)
             self.label_nyu40_pub.publish(colored_gt_msg)
 
-    def refine_with_sam(self, pseudo_label_files):
+    def refine_with_sam(self, pseudo_label_files, resize_to=(320, 240)):
         """
         Refines all pseudo-labels using SAM2RefinerMixed and saves results to sam_refined_dir.
         Assumes each pseudo label has a matching RGB image with the same filename.
+
+        Args:
+            pseudo_label_files (List[str]): List of paths to pseudo-label PNGs.
+            resize_to (Tuple[int, int]): Resize (width, height) for both image and mask before refinement. Default: (320, 240)
         """
         rospy.loginfo("Initializing SAM2RefinerMixed...")
-        refiner = SAM2RefinerMixed(visualize=False,batch_size=16, skip_labels=None,fill_strategy="ereditary", skip_max_labels=[1], min_area_ratio=0.001)  # Default model path assumed
-        w,h = self.image_size
+        """refiner = SAM2RefinerFast(
+            visualize=False,
+            batch_size=16,
+            skip_labels=None,
+            fill_strategy="ereditary",
+            skip_max_labels=[1], 
+            min_area_ratio=0.001
+        )"""
+        refiner=FastSamRefinerAuto(visualize=False)
+
         os.makedirs(self.sam_dir, exist_ok=True)
+        target_w, target_h = resize_to
 
         for label_path in tqdm(pseudo_label_files, desc="Refining masks with SAM"):
             filename = os.path.basename(label_path)
@@ -468,28 +481,30 @@ class MockedControlNode:
             if not os.path.exists(image_path):
                 rospy.logwarn(f"RGB image not found for label '{filename}', skipping...")
                 continue
-           
-            
+
             image = cv2.imread(image_path)
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             mask = cv2.imread(label_path)
             mask = cv2.cvtColor(mask, cv2.COLOR_BGR2RGB)
-            mask = cv2.resize(mask, (image.shape[1], image.shape[0]), interpolation=cv2.INTER_NEAREST)
-            mask = self.rgb_to_class_index(mask)
 
             if image is None or mask is None:
                 rospy.logwarn(f"Failed to load image or mask for '{filename}', skipping...")
                 continue
 
-            #rospy.loginfo(f"Refining '{filename}'...")
+            # Resize both image and mask to target size
+            if image.shape[:2] != (target_h, target_w):
+                image = cv2.resize(image, (target_w, target_h), interpolation=cv2.INTER_LINEAR)
+            if mask.shape[:2] != (target_h, target_w):
+                mask = cv2.resize(mask, (target_w, target_h), interpolation=cv2.INTER_NEAREST)
+
+            mask = self.rgb_to_class_index(mask)
+
             refined = refiner.refine(image, mask)
 
             save_path = os.path.join(self.sam_dir, filename)
             cv2.imwrite(save_path, refined)
-            #rospy.loginfo(f"Saved refined mask to '{save_path}'")
 
         rospy.loginfo("All SAM refinements completed.")
-     
 
     def run(self):
         # Step 1: Handle mesh
@@ -562,7 +577,7 @@ class MockedControlNode:
                     key=lambda x: int(os.path.splitext(x)[0])
                 )[::fps]
                 ]
-                self.refine_with_sam(pseudo_label_files)
+                self.refine_with_sam(pseudo_label_files,self.image_size)
             else:
                 rospy.loginfo("Skipping SAM refinement.")
         else:
@@ -574,7 +589,7 @@ class MockedControlNode:
                 key=lambda x: int(os.path.splitext(x)[0])
             )[::fps]
             ]
-            self.refine_with_sam(pseudo_label_files)
+            self.refine_with_sam(pseudo_label_files,self.image_size)
         
         # Step 3: Evaluate metrics after pseudo label generation and SAM refinement
         miou_dlab, acc_dlab, class_acc_dlab = self.calculate_metrics(
