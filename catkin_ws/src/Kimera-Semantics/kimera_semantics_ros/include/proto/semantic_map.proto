@@ -1,0 +1,27 @@
+syntax = "proto2";
+
+package kimera;
+message SemanticMapProto {
+    message SemanticBlockProto {
+      message OriginProto {
+          optional double x = 1;
+          optional double y = 2;
+          optional double z = 3;
+      }
+      message SemanticVoxelProto {
+        message ColorProto {
+          optional int32 r = 1;
+          optional int32 g = 2;
+          optional int32 b = 3;
+        }
+        optional ColorProto color = 1;
+        repeated float semantic_labels = 2;
+        optional int32 linear_index = 3;
+      }
+      optional int32 voxels_per_side = 1;
+      optional double voxel_size = 2;
+      optional OriginProto origin = 3;
+      repeated SemanticVoxelProto semantic_voxels = 4;
+    }
+    repeated SemanticBlockProto semantic_blocks = 1;
+}

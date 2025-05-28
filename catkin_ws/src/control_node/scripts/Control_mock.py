@@ -14,7 +14,7 @@ from label_generator_ros.srv import InitLabelGenerator, GenerateLabel, GenerateL
 from LabelElaborator import LabelElaborator
 from Modules import PILBridge
 import time
-from Metrics import SemanticsMeter
+from metrics import SemanticsMeter
 from collections import Counter
 import tf2_ros
 from tqdm import tqdm
@@ -469,7 +469,7 @@ class MockedControlNode:
             skip_max_labels=[1], 
             min_area_ratio=0.001
         )"""
-        refiner=FastSamRefinerAuto(visualize=False)
+        refiner=FastSamRefinerAuto(visualize=False, granularity=100)
 
         os.makedirs(self.sam_dir, exist_ok=True)
         target_w, target_h = resize_to
@@ -577,7 +577,7 @@ class MockedControlNode:
                     key=lambda x: int(os.path.splitext(x)[0])
                 )[::fps]
                 ]
-                self.refine_with_sam(pseudo_label_files,self.image_size)
+                self.refine_with_sam(pseudo_label_files,(1296,968))
             else:
                 rospy.loginfo("Skipping SAM refinement.")
         else:
@@ -589,7 +589,7 @@ class MockedControlNode:
                 key=lambda x: int(os.path.splitext(x)[0])
             )[::fps]
             ]
-            self.refine_with_sam(pseudo_label_files,self.image_size)
+            self.refine_with_sam(pseudo_label_files,(1296,968))
         
         # Step 3: Evaluate metrics after pseudo label generation and SAM refinement
         miou_dlab, acc_dlab, class_acc_dlab = self.calculate_metrics(

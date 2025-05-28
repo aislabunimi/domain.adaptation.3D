@@ -46,10 +46,6 @@
     path = catkin_ws/src/dipendenze_kimera/voxblox
     url = https://github.com/ethz-asl/voxblox
 
-[submodule "catkin_ws/src/Kimera-Semantics"]
-    path = catkin_ws/src/Kimera-Semantics
-    url = https://github.com/JonasFrey96/Kimera-Semantics
-
 [submodule "catkin_ws/src/orocos_kinematics_dynamics"]
     path = catkin_ws/src/orocos_kinematics_dynamics
     url = https://github.com/orocos/orocos_kinematics_dynamics
