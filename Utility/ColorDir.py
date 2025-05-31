@@ -2,7 +2,7 @@ import os
 import sys
 import cv2
 import numpy as np
-from TestScripts.Utilitity.LabelElaborator import LabelElaborator
+from Helper.LabelElaborator import LabelElaborator
 
 
 class ColorDir:
@@ -16,7 +16,7 @@ class ColorDir:
         if mapping_file is None:
             # Use nyu40_segmentation_mapping.csv in the same folder as this script
             script_dir = os.path.dirname(os.path.abspath(__file__))
-            mapping_file = os.path.join(script_dir, "Utility/nyu40_segmentation_mapping.csv")
+            mapping_file = os.path.join(script_dir, "Helper/nyu40_segmentation_mapping.csv")
             print(f"[INFO] No mapping file provided. Using default: {mapping_file}")
 
         if not os.path.isfile(mapping_file):

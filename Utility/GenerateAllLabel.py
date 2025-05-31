@@ -3,8 +3,8 @@ from sensor_msgs.msg import Image
 import cv2
 import os
 import argparse
-from TestScripts.Utilitity.PILBridge import PILBridge
-from TestScripts.GenerateColoredLabel import LabelElaborator
+from Helper.PILBridge import PILBridge
+from GenerateColoredLabel import LabelElaborator
 import numpy as np
 from functools import partial
 from tqdm import tqdm

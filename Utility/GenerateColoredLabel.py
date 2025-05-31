@@ -2,7 +2,7 @@ import numpy as np
 import cv2
 import os
 from tqdm import tqdm
-from TestScripts.Utilitity.LabelElaborator import LabelElaborator
+from Helper.LabelElaborator import LabelElaborator
 
 def main():
     scan_dir = "/media/adaptation/New_volume/Domain_Adaptation_Pipeline/IO_pipeline/Scannet_DB/scans"
