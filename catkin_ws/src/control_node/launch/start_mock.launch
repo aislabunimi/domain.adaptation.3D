@@ -3,7 +3,7 @@
     <arg name="scene_number" default="0000_00" />
     <arg name="data_root" default="/media/adaptation/New_volume/Domain_Adaptation_Pipeline/IO_pipeline/Scannet_DB/scans/scene$(arg scene_number)" />
 
-    <arg name="voxel_size" default="0.03"/>
+    <arg name="voxel_size" default="0.05"/>
     <arg name="kimera_int_out_dir" default="$(arg data_root)/mesh_$(arg voxel_size)" />
 
     <!-- Include external launch with voxel_size arg -->
@@ -19,7 +19,7 @@
     <node name="mocked_control_node" pkg="control_node" type="Control_mock.py" output="screen">
         <param name="img_size_h" value="240" />
         <param name="img_size_w" value="320" />
-        <param name="automatic" value="False" />
+        <param name="automatic" value="True" />
         <param name="scene_number" value="$(arg scene_number)" />
         <param name="image_dir" value="$(arg data_root)/color" />
         <param name="pseudo_dir" value="$(arg data_root)/pseudo_labels_$(arg voxel_size)" />
