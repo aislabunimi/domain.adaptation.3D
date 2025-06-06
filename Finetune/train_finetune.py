@@ -117,14 +117,14 @@ def train(exp, env, exp_cfg_path, env_cfg_path, args) -> float:
     trainer.fit(model, datamodule=datamodule)
     trainer.test(model=model, datamodule=datamodule)
 
-
+# python scripts/train_finetune.py --exp cfg/exp/one_step_finetune_nerf/${Scenes[i]}_lr1e-5.yml --project_name $name --prev_exp_name $prev_exp_name 
 if __name__ == "__main__":
     os.chdir(ROOT_DIR)
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--exp",
-        default="cfg/exp/finetune/deeplabv3_s0.yml",
+        default="exp/s00_lr1e-5.yml",
         help=
         "Experiment yaml file path relative to template_project_name/cfg/exp directory.",
     )
