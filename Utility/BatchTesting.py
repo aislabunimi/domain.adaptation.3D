@@ -9,11 +9,7 @@ import sys
 from xml.etree import ElementTree as ET
 import argparse
 
-<<<<<<< HEAD
 LAUNCH_FILE_PATH = "../catkin_ws/src/control_node/launch/start_mock.launch"
-=======
-LAUNCH_FILE_PATH = "control_node/launch/start_mock.launch"
->>>>>>> c09be710ad885aa0b44bf77a28c0b4338baf7318
 
 def parse_results(output):
     patterns = {

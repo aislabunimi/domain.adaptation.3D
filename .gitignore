@@ -7,4 +7,4 @@ output_db
 catkin_ws/build
 catkin_ws/merged
 catkin_ws/logs
-finetune/processed_dataset
+Finetune/processed_dataset

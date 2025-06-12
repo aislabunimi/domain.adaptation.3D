@@ -5,18 +5,18 @@ import zipfile
 import numpy as np
 
 # Hyperparameters
-BASE_PATH = Path("/path/to/base")  # base path containing scene folders
-SCENES = [f"{6 + i:04d}_00" for i in range(10)]  # e.g., 0006_00 to 0015_00
+BASE_PATH = Path("/media/adaptation/New_volume/Domain_Adaptation_Pipeline/IO_pipeline/Scannet_DB/scans")
+SCENES = [f"scene{i:04d}_00" for i in range(10)]
 FOLDER_NAMES = {
-    "rgb": "rgb_folder",
-    "pseudo": "pseudo_folder",
-    "sam": "sam_folder",
-    "gt": "gt_folder"
+    "rgb": "color",
+    "pseudo": "pseudo_labels_0.05",
+    "sam": "sam_labels_0.05_prompt_1296x968",
+    "gt": "label_nyu40"
 }
 OUTPUT_PATH = Path("processed_dataset")
-OUTPUT_ZIP = "processed_dataset.zip"
+OUTPUT_ZIP = "0.05_prompt_1296x968.zip"
 TARGET_SIZE = (320, 240)
-MAPPING_FILE = Path("/path/to/mapping.csv")
+MAPPING_FILE = Path("nyu40_segmentation_mapping.csv")
 
 # Load class color mapping
 mapping = np.genfromtxt(MAPPING_FILE, delimiter=",")[1:, 1:4]
@@ -24,16 +24,10 @@ CLASS_COLORS = mapping.astype(np.uint8)
 
 
 def is_grayscale(image: Image.Image) -> bool:
-    """
-    Check if a PIL image is grayscale.
-    """
     return image.mode == 'L'
 
 
 def convert_rgb_to_class_index(image: Image.Image) -> Image.Image:
-    """
-    Convert a PIL RGB image to class index map and return as grayscale PIL image.
-    """
     rgb_np = np.array(image.convert("RGB"))
     h, w = rgb_np.shape[:2]
     class_map = np.zeros((h, w), dtype=np.uint8)
@@ -45,17 +39,21 @@ def convert_rgb_to_class_index(image: Image.Image) -> Image.Image:
     return Image.fromarray(class_map, mode='L')
 
 
-def process_and_save_image(image_path: Path, output_path: Path, to_index=False):
+def process_and_save_image(image_path: Path, output_path: Path, to_index=False, is_rgb=False):
     with Image.open(image_path) as img:
-        # Resize if needed
+        # Choose resampling method
         if img.size != TARGET_SIZE:
-            img = img.resize(TARGET_SIZE, Image.ANTIALIAS)
+            if is_rgb:
+                resample_mode = Image.Resampling.BOX  # Similar to cv2.INTER_AREA
+            else:
+                resample_mode = Image.Resampling.NEAREST
+            img = img.resize(TARGET_SIZE, resample=resample_mode)
 
         if to_index:
             if not is_grayscale(img):
                 img = convert_rgb_to_class_index(img)
             else:
-                img = img.convert("L")  # Ensure saved as 8-bit grayscale
+                img = img.convert("L")
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
         img.save(output_path)
@@ -71,7 +69,7 @@ def main():
     for scene in SCENES:
         for key, folder_name in FOLDER_NAMES.items():
             input_folder = BASE_PATH / scene / folder_name
-            output_folder = OUTPUT_PATH / scene / folder_name
+            output_folder = OUTPUT_PATH / scene / key  # force standardized output folder names
 
             if not input_folder.exists():
                 print(f"Warning: Folder {input_folder} does not exist. Skipping.")
@@ -79,10 +77,10 @@ def main():
 
             for img_file in input_folder.iterdir():
                 if img_file.is_file() and img_file.suffix.lower() in [".png", ".jpg", ".jpeg", ".bmp", ".tiff"]:
-                    # Only pseudo, sam, gt folders should be converted to class-index grayscale
                     to_index = key in ["pseudo", "sam", "gt"]
+                    is_rgb = key == "rgb"
                     output_file = output_folder / img_file.name
-                    process_and_save_image(img_file, output_file, to_index)
+                    process_and_save_image(img_file, output_file, to_index, is_rgb)
 
     # Zip the output folder
     with zipfile.ZipFile(OUTPUT_ZIP, 'w', zipfile.ZIP_DEFLATED) as zipf:
