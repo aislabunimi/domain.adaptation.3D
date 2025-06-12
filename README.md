@@ -9,7 +9,9 @@ This repository provides a ROS-based pipeline for unsupervised continual domain 
 - Label refinement using **Segment Anything Model (SAM)**
 - Semantic segmentation fine-tuning with **DeepLabV3**
 
-![Pipeline Diagram](diagram.png)
+<div style="background-color: white; display: inline-block; padding: 4px;">
+  <img src="diagram.png" alt="Pipeline Diagram" />
+</div>
 
 # Installation & Setup Guide
 
