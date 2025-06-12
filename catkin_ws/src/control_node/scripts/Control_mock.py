@@ -689,7 +689,7 @@ class MockedControlNode:
             self.pseudo_label_generator()
 
         # Step 2.5: Refine pseudo-labels with SAM
-        resize_to=(320,240) #1296x968  320x240
+        resize_to=(1296,968) #1296x968  320x240
         size_str = f"_{resize_to[0]}x{resize_to[1]}"
         sam_refined_dir = self.sam_dir + ("_auto" if self.automatic else "_prompt") + size_str # You should define this in __init__ or elsewhere
         

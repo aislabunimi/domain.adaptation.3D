@@ -1,0 +1,19 @@
+[
+    {
+        "scene": "0000_00",
+        "start_time": "2025-06-04 20:21:14",
+        "termination_time": "2025-06-04 20:21:21",
+        "results": {
+            "DeepLab": [],
+            "Pseudo": [],
+            "SAM": [],
+            "SAM_Avg": []
+        },
+        "voxel_size": "unknown",
+        "mode": "manual",
+        "img_size": [
+            320,
+            240
+        ]
+    }
+]
