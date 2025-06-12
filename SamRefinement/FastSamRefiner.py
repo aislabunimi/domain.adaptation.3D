@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from ultralytics import SAM
 
-class SAM2RefinerMixed:
+class SAM2RefinerFast:
     def __init__(
         self,
         model_path: str = "sam2_b.pt",
@@ -39,6 +39,7 @@ class SAM2RefinerMixed:
         image_area = image.shape[0] * image.shape[1]
 
         all_points = []
+        all_point_labels = []
         all_bboxes = []
         prompt_labels = []
         comp_masks = []
@@ -63,9 +64,30 @@ class SAM2RefinerMixed:
                 if len(xs) == 0:
                     continue
 
+                # Positive points: center + random samples from mask
+                pos_points = []
                 cx, cy = int(np.median(xs)), int(np.median(ys))
+                pos_points.append([cx, cy])
+
+                if len(xs) > 5:
+                    indices = np.random.choice(len(xs), size=min(4, len(xs)), replace=False)
+                    for idx in indices:
+                        pos_points.append([xs[idx], ys[idx]])
+
+                # Optional: add negative points around the bounding box (not in current label)
+                neg_points = []
+                expanded_mask = cv2.dilate(comp_mask, kernel, iterations=2)
+                border_mask = (expanded_mask == 1) & (comp_mask == 0) & (mask != label)
+                neg_ys, neg_xs = np.where(border_mask)
+                if len(neg_xs) > 0:
+                    neg_indices = np.random.choice(len(neg_xs), size=min(4, len(neg_xs)), replace=False)
+                    for idx in neg_indices:
+                        neg_points.append([neg_xs[idx], neg_ys[idx]])
+
+                all_points.append(pos_points + neg_points)
+                all_point_labels.append([1] * len(pos_points) + [-1] * len(neg_points))
+
                 x, y, w, h = cv2.boundingRect(comp_mask)
-                all_points.append([cx, cy])
                 all_bboxes.append([x, y, x + w, y + h])
                 prompt_labels.append(label)
                 comp_masks.append(comp_mask)
@@ -77,14 +99,16 @@ class SAM2RefinerMixed:
         # Step 2: SAM predictions in batches
         for i in range(0, len(all_points), self.batch_size):
             points_batch = all_points[i:i + self.batch_size]
+            labels_batch = all_point_labels[i:i + self.batch_size]
             bboxes_batch = all_bboxes[i:i + self.batch_size]
-            labels_batch = prompt_labels[i:i + self.batch_size]
+            prompt_labels_batch = prompt_labels[i:i + self.batch_size]
             comps_batch = comp_masks[i:i + self.batch_size]
 
             try:
                 results = self.model.predict(
                     image,
                     points=points_batch,
+                    labels=labels_batch,
                     bboxes=bboxes_batch,
                     verbose=False
                 )
@@ -98,9 +122,8 @@ class SAM2RefinerMixed:
             for j, sam_m in enumerate(results[0].masks):
                 sam_mask = sam_m.data.cpu().numpy().squeeze().astype(np.uint8)
 
-                # If label in skip_max_labels: assign SAM mask directly
-                if labels_batch[j] in self.skip_max_labels:
-                    refined_mask[sam_mask == 1] = labels_batch[j]
+                if prompt_labels_batch[j] in self.skip_max_labels:
+                    refined_mask[sam_mask == 1] = prompt_labels_batch[j]
                 else:
                     overlapping_labels = mask[sam_mask == 1]
                     if overlapping_labels.size == 0:
@@ -136,48 +159,63 @@ class SAM2RefinerMixed:
         elif self.fill_strategy == "ereditary":
             refined_mask[to_fill] = mask[to_fill]
 
-        # Step 4: Final visualization
         if self.visualize:
             self._debug_visualize(image, refined_mask, all_points, all_bboxes)
 
         return refined_mask
 
-    def _debug_per_prompt(self, image, comp_mask, point, bbox, sam_mask):
-        cx, cy = point
+    def _debug_per_prompt(self, image, comp_mask, points, bbox, sam_mask):
         x1, y1, x2, y2 = bbox
 
         fig, axes = plt.subplots(1, 3, figsize=(12, 4))
+
+        # === Plot on Component Mask ===
         axes[0].imshow(comp_mask, cmap='gray')
-        axes[0].plot(cx, cy, 'ro')
+        for cx, cy in points:
+            axes[0].plot(cx, cy, 'ro')
         axes[0].add_patch(plt.Rectangle((x1, y1), x2 - x1, y2 - y1,
                                         edgecolor='lime', facecolor='none', linewidth=1))
         axes[0].set_title("Original Component")
         axes[0].axis('off')
 
+        # === Plot on Original Image ===
         axes[1].imshow(image)
-        axes[1].plot(cx, cy, 'ro')
+        for cx, cy in points:
+            axes[1].plot(cx, cy, 'ro')
         axes[1].add_patch(plt.Rectangle((x1, y1), x2 - x1, y2 - y1,
                                         edgecolor='lime', facecolor='none', linewidth=1))
         axes[1].set_title("Prompt on Image")
         axes[1].axis('off')
 
+        # === SAM Output ===
         axes[2].imshow(sam_mask, cmap='gray')
         axes[2].set_title("SAM Output")
         axes[2].axis('off')
 
         plt.tight_layout()
         plt.show()
-
     def _debug_visualize(self, image, mask, points, bboxes):
+        def create_label_colormap():
+            # Generate 256 distinct colors
+            np.random.seed(42)  # Fixed seed for reproducibility
+            colormap = np.random.randint(0, 255, (256, 3), dtype=np.uint8)
+            colormap[0] = [0, 0, 0]  # Background stays black
+            return colormap
+
+        colormap = create_label_colormap()
+        color_mask = colormap[mask]
+
+        # Blend original image with color mask
+        blended = cv2.addWeighted(image, 0.6, color_mask, 0.4, 0)
+
         plt.figure(figsize=(10, 8))
-        plt.imshow(image)
+        plt.imshow(blended)
         for (x, y) in points:
             plt.plot(x, y, 'ro', markersize=3)
         for (x1, y1, x2, y2) in bboxes:
             plt.gca().add_patch(plt.Rectangle((x1, y1), x2 - x1, y2 - y1,
-                                              edgecolor='lime', facecolor='none', linewidth=1))
-        plt.imshow(mask, alpha=0.4, cmap='jet')
-        plt.title("Refinement Debug View")
+                                            edgecolor='lime', facecolor='none', linewidth=1))
+        plt.title("Refined Mask Overlay")
         plt.axis("off")
         plt.tight_layout()
         plt.show()
