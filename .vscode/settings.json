@@ -74,5 +74,6 @@
         "*.ipp": "cpp",
         "forward_list": "cpp",
         "slist": "cpp"
-    }
+    },
+    "cmake.sourceDirectory": "D:/PROJECTS/Thesis/domain.adaptation.3D/catkin_ws/src"
 }

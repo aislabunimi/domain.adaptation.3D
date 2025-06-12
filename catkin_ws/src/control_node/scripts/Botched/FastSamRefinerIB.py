@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from ultralytics import SAM
-from InnerBoxFinder import InnerBoxFinder
+from catkin_ws.src.control_node.scripts.Botched.InnerBoxFinder import InnerBoxFinder
 
 class SAM2RefinerMixed:
     def __init__(self, model_path="sam2_b.pt", visualize=True, skip_labels=None,
