@@ -6,7 +6,7 @@ from pathlib import Path
 
 # Hyperparameters
 BASE_PATH = Path("/media/adaptation/New_volume/Domain_Adaptation_Pipeline/IO_pipeline/Scannet_DB/scans")
-SCENES = [f"scene{i:04d}_00" for i in range(6,10)]
+SCENES = [f"scene{i:04d}_00" for i in range(0,1)]
 FOLDER_NAMES = {
     "rgb": "color",
     "pseudo3": "pseudo_labels_0.03",
