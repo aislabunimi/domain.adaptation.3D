@@ -6,7 +6,7 @@ from pathlib import Path
 
 # Hyperparameters
 BASE_PATH = Path("/media/adaptation/New_volume/Domain_Adaptation_Pipeline/IO_pipeline/Scannet_DB/scans")
-SCENES = [f"scene{i:04d}_00" for i in range(10)]
+SCENES = [f"scene{i:04d}_00" for i in range(6,10)]
 FOLDER_NAMES = {
     "rgb": "color",
     "pseudo3": "pseudo_labels_0.03",
@@ -80,9 +80,9 @@ def process_and_save_image(image_path: Path, output_path: Path, to_index=False, 
 
 def main():
     # Clean output folder if exists
-    if OUTPUT_PATH.exists():
-        shutil.rmtree(OUTPUT_PATH)
-    OUTPUT_PATH.mkdir(parents=True)
+    if not OUTPUT_PATH.exists():
+        OUTPUT_PATH.mkdir(parents=True)
+    
 
     for scene in SCENES:
         for key, folder_name in FOLDER_NAMES.items():
