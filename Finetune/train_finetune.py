@@ -6,8 +6,8 @@ import shutil
 
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
-from pytorch_lightning.plugins import DDPPlugin
-from pytorch_lightning.profiler import AdvancedProfiler
+from pytorch_lightning.strategies import DDPStrategy
+from pytorch_lightning.profilers import AdvancedProfiler
 
 from nr4seg import ROOT_DIR
 from nr4seg.lightning import FineTuneDataModule, SemanticsLightningNet
@@ -69,12 +69,13 @@ def train(exp, env, exp_cfg_path, env_cfg_path, args) -> float:
     cb_ls.append(checkpoint_callback)
 
     # set gpus
-    if (exp["trainer"]).get("gpus", -1) == -1:
+    if "devices" not in exp["trainer"] or exp["trainer"]["devices"] == -1:
         nr = torch.cuda.device_count()
         print(f"Set GPU Count for Trainer to {nr}!")
         for i in range(nr):
             print(f"Device {i}: ", torch.cuda.get_device_name(i))
-        exp["trainer"]["gpus"] = nr
+        exp["trainer"]["devices"] = nr
+
 
     # profiler
     if exp["trainer"].get("profiler", False):
@@ -91,7 +92,7 @@ def train(exp, env, exp_cfg_path, env_cfg_path, args) -> float:
         del exp["trainer"]["resume_from_checkpoint"]
 
     if exp["trainer"]["load_from_checkpoint"] is True:
-        checkpoint = torch.load(exp["general"]["checkpoint_load"])
+        checkpoint = torch.load(os.path.join(ROOT_DIR,exp["general"]["checkpoint_load"]))
         checkpoint = checkpoint["state_dict"]
         # remove any aux classifier stuff
         removekeys = [
@@ -106,14 +107,14 @@ def train(exp, env, exp_cfg_path, env_cfg_path, args) -> float:
 
     trainer = Trainer(
         **exp["trainer"],
-        plugins=DDPPlugin(find_unused_parameters=False),
+        strategy=DDPStrategy(find_unused_parameters=False),
         default_root_dir=model_path,
         callbacks=cb_ls,
         logger=logger,
     )
     ####################################################################################################################
     trainer.validate(model=model, datamodule=datamodule)
-    trainer.test(model=model, datamodule=datamodule)
+    #trainer.test(model=model, datamodule=datamodule)
     trainer.fit(model, datamodule=datamodule)
     trainer.test(model=model, datamodule=datamodule)
 
@@ -134,7 +135,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     exp_cfg_path = os.path.join(ROOT_DIR, args.exp)
     exp = load_yaml(exp_cfg_path)
-    env_cfg_path = os.path.join(ROOT_DIR, "cfg/env",
+    env_cfg_path = os.path.join(ROOT_DIR, "env",
                                 os.environ["ENV_WORKSTATION_NAME"] + ".yml")
     env = load_yaml(env_cfg_path)
 

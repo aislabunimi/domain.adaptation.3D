@@ -3,6 +3,8 @@ import PIL
 import torch
 from torchvision import transforms as tf
 from torchvision.transforms import functional as F
+from torchvision.transforms.functional import InterpolationMode
+
 import warnings
 
 __all__ = ["Augmentation", "AugmentationList", "get_output_size"]
@@ -141,8 +143,10 @@ class AugmentationList:
         with warnings.catch_warnings():
             # this will suppress all warnings in this block
             warnings.simplefilter("ignore")
-            self._rot = tf.RandomRotation(degrees=degrees,
-                                          resample=PIL.Image.BILINEAR)
+            self._rot = tf.RandomRotation(
+                    degrees=degrees,
+                    interpolation=InterpolationMode.BILINEAR  # use NEAREST if for masks
+                )
         self._flip_p = flip_p
         self._degrees = degrees
 

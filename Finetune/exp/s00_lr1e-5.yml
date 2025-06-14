@@ -1,7 +1,7 @@
 general:
   name: finetune_nerf_train/scannet_scene0000_00
   clean_up_folder_if_exists: True
-  checkpoint_load: "ckpts/best-epoch=143-step=175536.ckpt"
+  checkpoint_load: "ckpts/best-epoch143-step175536.ckpt"
 
 model:
   pretrained: False
@@ -17,7 +17,8 @@ optimizer:
 
 trainer:
   max_epochs: 50
-  gpus: -1
+  accelerator: gpu
+  devices: auto
   num_sanity_val_steps: 0
   check_val_every_n_epoch: 1
   resume_from_checkpoint: False
@@ -29,12 +30,12 @@ data_module:
   shuffle: true
   num_workers: 2
   drop_last: false
-  root: data/scannet/scannet_frames_25k
-  train_image: color
+  root: processed_dataset
+  train_image: rgb
   train_label: pseudo
   data_preprocessing:
     val_ratio: 0.2
-    image_regex: /*/color/*.jpg
+    image_regex: /*/rgb/*.jpg
     split_file: split.npz
     split_file_cl: split_cl.npz
 

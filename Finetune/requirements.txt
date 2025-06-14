@@ -1,0 +1,28 @@
+# Core dependencies
+torch==2.6.0+cu124
+torchvision==0.21.0+cu124
+torchaudio==2.6.0+cu124
+pytorch-lightning==2.2.4
+
+# Logging
+wandb>=0.16.0
+
+# Data handling and config
+PyYAML
+numpy
+pandas
+scikit-learn
+
+# Visualization
+matplotlib
+opencv-python
+
+# Optional utilities
+tqdm
+rich
+
+# If you use DDPPlugin from PyTorch Lightning
+torchmetrics
+
+# To ensure correct wheel URLs for torch
+--extra-index-url https://download.pytorch.org/whl/cu124
