@@ -19,6 +19,8 @@
     <node name="mocked_control_node" pkg="control_node" type="Control_mock.py" output="screen">
         <param name="img_size_h" value="240" />
         <param name="img_size_w" value="320" />
+        <param name="feed_w" value="320"/>
+        <param name="feed_h" value="240"/>
         <param name="automatic" value="False" />
         <param name="scene_number" value="$(arg scene_number)" />
         <param name="image_dir" value="$(arg data_root)/color" />

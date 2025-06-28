@@ -138,6 +138,12 @@ To simulate a full scene pipeline:
 roslaunch control_node start_mock.launch
 ```
 
+### Batch testing
+In utility you can use `BatchTesting.py`  to generate all kimera mesh pseudo and sam for all the scenes:
+```bash
+python3 BatchTesting.py --start 0 --end 10
+```
+
 ## Notes on Protobuf
 
 ROS is not compatible with recent versions of `protoc`. If you have a newer version installed:

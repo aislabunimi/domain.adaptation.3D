@@ -44,6 +44,8 @@ def extract_voxel_and_mode():
 
         voxel_size = "unknown"
         automatic = False
+        feed_w = None
+        feed_h = None
 
         for arg in root.findall("arg"):
             if arg.attrib.get("name") == "voxel_size":
@@ -52,14 +54,21 @@ def extract_voxel_and_mode():
         for node in root.findall("node"):
             if node.attrib.get("name") == "mocked_control_node":
                 for param in node.findall("param"):
-                    if param.attrib.get("name") == "automatic":
-                        automatic = param.attrib.get("value", "false").lower() == "true"
+                    name = param.attrib.get("name")
+                    value = param.attrib.get("value")
 
-        return voxel_size, automatic
+                    if name == "automatic":
+                        automatic = value.lower() == "true"
+                    elif name == "feed_w":
+                        feed_w = int(value)
+                    elif name == "feed_h":
+                        feed_h = int(value)
+
+        return voxel_size, automatic, feed_w, feed_h
 
     except Exception as e:
         print(f"⚠️ Error parsing launch file: {e}")
-        return "unknown", False
+        return "unknown", False, None, None
 
 def run_scene(scene_number):
     print(f"▶ Running scene {scene_number}...")
@@ -124,16 +133,14 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--start", type=int, required=True, help="Start scene index")
     parser.add_argument("--end", type=int, required=True, help="End scene index (exclusive)")
-    parser.add_argument("--width", type=int, required=True, help="Image width")
-    parser.add_argument("--height", type=int, required=True, help="Image height")
     args = parser.parse_args()
 
-    voxel_size, automatic = extract_voxel_and_mode()
+    voxel_size, automatic,feed_w, feed_h = extract_voxel_and_mode()
     mode = "auto" if automatic else "manual"
 
-    output_file = f"scene_output_vs{voxel_size}_{mode}_{args.width}x{args.height}_{args.start}to{args.end - 1}.json"
+    output_file = f"scene_output_vs{voxel_size}_{mode}_{feed_w}x{feed_h}_{args.start}to{args.end - 1}.json"
     print(f"📂 Output will be saved to: {output_file}")
-    print(f"📋 Params — voxel_size: {voxel_size}, mode: {mode}, resolution: {args.width}x{args.height}")
+    print(f"📋 Params — voxel_size: {voxel_size}, mode: {mode}, resolution: {feed_w}x{feed_h}")
 
     all_data = []
     for i in range(args.start, args.end):
@@ -142,7 +149,7 @@ def main():
         result.update({
             "voxel_size": voxel_size,
             "mode": mode,
-            "img_size": [args.width, args.height]
+            "img_size": [feed_w, feed_h]
         })
         all_data.append(result)
 

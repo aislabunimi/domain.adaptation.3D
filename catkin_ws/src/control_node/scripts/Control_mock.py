@@ -650,7 +650,7 @@ class MockedControlNode:
                 if self.auto_yes:
                     answer = "y"
                 else:
-                    answer="n"
+                    answer="y"
                     #answer = input("Mesh already exists. Regenerate? [y/N]: ").strip().lower()
             except EOFError:
                 rospy.logerr("Cannot ask for user input. Running in non-interactive mode. Skipping mesh regeneration.")
@@ -670,7 +670,7 @@ class MockedControlNode:
                 if self.auto_yes:
                     answer = "y"
                 else:
-                    answer="n"
+                    answer="y"
                     #answer = input("PseudoLabels directory is not empty. Regenerate? [y/N]: ").strip().lower()
             except EOFError:
                 rospy.logerr("Cannot ask for user input. Running in non-interactive mode. Skipping pseudo label generation.")
@@ -689,7 +689,9 @@ class MockedControlNode:
             self.pseudo_label_generator()
 
         # Step 2.5: Refine pseudo-labels with SAM
-        resize_to=(320,240) #1296x968  320x240
+        feed_w = rospy.get_param('~feed_w', 320)
+        feed_h = rospy.get_param('~feed_h', 240)
+        resize_to = (feed_w, feed_h)  # 1296x968 → 320x240
         size_str = f"_{resize_to[0]}x{resize_to[1]}"
         sam_refined_dir = self.sam_dir + ("_auto" if self.automatic else "_prompt") + size_str # You should define this in __init__ or elsewhere
         
@@ -699,7 +701,7 @@ class MockedControlNode:
                 if self.auto_yes:
                     answer = "y"
                 else:
-                    answer="n"
+                    answer="y"
                     #answer = input("SAM refined directory is not empty. Regenerate? [y/N]: ").strip().lower()
             except EOFError:
                 rospy.logerr("Cannot ask for user input. Running in non-interactive mode. Skipping SAM refinement.")
