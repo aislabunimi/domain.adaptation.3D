@@ -67,7 +67,7 @@ for voxel in voxels:
 
     for scene in [f'scene000{i}_00' for i in range(0, 10)]:
 
-        TRAIN_MODELS_PATH = os.path.join(TRAIN_MODELS_PATH_GLOBAL, 'fine_tune_3D', f'pseudo{voxel}', scene, 'lightning_logs')
+        TRAIN_MODELS_PATH = os.path.join(TRAIN_MODELS_PATH_GLOBAL, 'test_pseudo3D', f'pseudo{voxel}', scene, 'lightning_logs')
         last_version = sorted([d for d in os.listdir(TRAIN_MODELS_PATH) if 'version_' in d],
                               key=lambda d: (int(d.replace('version_', ''))))[-1]
         TRAIN_MODELS_PATH = os.path.join(TRAIN_MODELS_PATH, last_version, 'metrics.csv')
