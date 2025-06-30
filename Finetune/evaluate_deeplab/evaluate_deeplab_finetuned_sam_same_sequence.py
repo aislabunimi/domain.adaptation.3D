@@ -58,20 +58,17 @@ seed_everything(123)
 
 voxels = [5, 3]
 methods = ['C', 'A']
-imsize_sam = ['b', 's']
-pseudo3ds = [True, False]
+imsizes_sam = ['b', 's']
+pseudo3d = False
 deeplab = False
 
 
-for pseudo3d in pseudo3ds:
-    for voxel in voxels:
-        for method in methods:
-            if pseudo3d:
-                TRAIN_MODELS_PATH_GLOBAL = os.path.join(TRAIN_MODEL_PATH, 'fine_tune_3D', f'pseudo{voxel}')
-                experiment_path_global = os.path.join(RESULTS_PATH, 'test_pseudo3D', f'pseudo{voxel}')
-            else:
-                TRAIN_MODELS_PATH_GLOBAL = os.path.join(TRAIN_MODEL_PATH, 'fine_tune_sam', f'{method}{imsize_sam}{voxel}')
-                experiment_path_global = os.path.join(RESULTS_PATH, 'test_sam', f'{method}{imsize_sam}{voxel}')
+for voxel in voxels:
+
+    for method in methods:
+        for imsize_sam in imsizes_sam:
+            TRAIN_MODELS_PATH_GLOBAL = os.path.join(TRAIN_MODEL_PATH, 'fine_tune_sam', f'{method}{imsize_sam}{voxel}')
+            experiment_path_global = os.path.join(RESULTS_PATH, 'test_sam', f'{method}{imsize_sam}{voxel}')
 
             for scene in [f'scene000{i}_00' for i in range(0, 10)]:
 
