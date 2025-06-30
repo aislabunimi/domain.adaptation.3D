@@ -30,9 +30,7 @@ https://wiki.ros.org/noetic/Installation/Ubuntu
 
 ## ScanNet Dataset
 
-We use the ScanNet dataset for this project. To download the ScanNet data and the corresponding NYU40 labels, please use the helper repository:
-
-https://github.com/micheleantonazzi/ros_visual_datasets
+We use the ScanNet dataset for this project. To download the ScanNet data and the corresponding NYU40 labels, please use this [helper repository](https://github.com/micheleantonazzi/ros_visual_datasets) and follow the instruction for the   Scannet dataset.
 
 To simplify the integration with this repository and avoid modifying the launch files, we recommend recreating the following directory structure on your system while downloading the ScanNet dataset. This structure ensures minimal changes to the configuration files:
 
@@ -124,7 +122,7 @@ python GenerateAllLabels.py
 
 You can add '--scene=00002' and '--base_path=path/to/Domain_Adaptation_Pipeline' args to specify the scene number and the correct path.
 
-## Run the Full Pipeline
+## Generate the Pseudo Labels: Run the Full Pipeline
 
 Before launching the full pipeline modify `catkin_ws/src/control_node/launch/start_mock.launch` to configure:
 
@@ -176,6 +174,25 @@ Also, check your Conda base environment for `libprotobuf` conflicts. Rebuild pro
 cd catkin_ws/src/kimera_semantics_ros/include/proto/
 protoc --cpp_out=. semantic_map.proto
 ```
+
+## Use the Generated Labels to Fine Tune and Test Deeplab
+We exported all the generated 3D MAPS and pseudo labels (both those ray traced from the 3D map and their refinements with SAM2), that can be downloaded from [here](https://unimi2013-my.sharepoint.com/:f:/g/personal/michele_antonazzi_unimi_it/EltYwy6J44dCpOaDwETSaXoB3TBCcsYfgY9kXENRK2C31A?e=EyUgQW).
+Inside this, for each scene, you can find:
+* The generated 3D meshes
+* The generated pseudo labels obtained from the 3D voxel map. They are inside a folder named `pseudo{voxel_size}`
+* The pseudo labels refined with SAM. They are inside folders name `sam{method}{imsize}{voxel}`, where
+  * `method` indicates the method used to prompt SAM, `C` means prompt using pseudo labels, `A` means automatic using a grid of points
+  * `imsize` indicates the size of the RGB image used by SAM. `b` is big (original size), `s` is small (320x240 pixels)
+  * `voxel` is the size of the voxel size of the map from which the original labels are rendered
+
+Furthermore, we made publicly available all the models fine tuned using our pseudo labels ([download link](https://unimi2013-my.sharepoint.com/:f:/g/personal/michele_antonazzi_unimi_it/EskwDXyxXgRBtANzO_74SyUB0UHZGzUayTMgn0HYCIAAGA?e=MK1svd)).
+
+To test Deeplab follow these steps:
+
+* Download the exported labels from [here](https://unimi2013-my.sharepoint.com/:f:/g/personal/michele_antonazzi_unimi_it/EltYwy6J44dCpOaDwETSaXoB3TBCcsYfgY9kXENRK2C31A?e=EyUgQW).
+  * For each scene, download the RGB and ground truth with the NYU40 labels following [these instructions](#scannet-dataset). Then, copy the folders with the RGB images (named `color`) and the labels (named `gt`) inside the folder of each scene. The colored images must be in the original dimension while the labels must be rescaled in 320x240. **NB: Remember to do it for each scene from 0 to 9, first and second sequence (the second sequence is not available for all scenes). All the RGB images for which the pose is corrupted/not available are discarded from pseudo label generation.**
+* Download the pretrained models from [here](https://unimi2013-my.sharepoint.com/:f:/g/personal/michele_antonazzi_unimi_it/EskwDXyxXgRBtANzO_74SyUB0UHZGzUayTMgn0HYCIAAGA?e=MK1svd).
+
 
 ## Troubleshooting
 
