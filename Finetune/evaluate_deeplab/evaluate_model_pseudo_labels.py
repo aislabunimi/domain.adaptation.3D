@@ -57,73 +57,73 @@ TRAIN_MODEL_PATH = '/media/adaptation/New_volume/models_trained/'
 seed_everything(123)
 
 voxels = [5, 3]
-method = 'C'
-imsize_sam = 'b'
-pseudo3d = True
+method = ['C', 'A']
+imsize_sam = ['b', 's']
+pseudo3ds = [True, False]
 deeplab = False
 
-for voxel in voxels:
-    TRAIN_MODELS_PATH_GLOBAL = os.path.join(TRAIN_MODEL_PATH, 'fine_tune_3D', f'pseudo{voxel}')
-    experiment_path_global = os.path.join(RESULTS_PATH, f'test_pseudo{voxel}')
 
-    for scene in [f'scene000{i}_00' for i in range(0, 10)]:
+for pseudo3d in pseudo3ds:
+    for voxel in voxels:
+        if pseudo3d:
+            TRAIN_MODELS_PATH_GLOBAL = os.path.join(TRAIN_MODEL_PATH, 'fine_tune_3D', f'pseudo{voxel}')
+            experiment_path_global = os.path.join(RESULTS_PATH, 'test_pseudo3D', f'pseudo{voxel}')
+        else:
+            TRAIN_MODELS_PATH_GLOBAL = os.path.join(TRAIN_MODEL_PATH, 'fine_tune_sam', f'{method}{imsize_sam}{voxel}')
+            experiment_path_global = os.path.join(RESULTS_PATH, 'test_sam', f'{method}{imsize_sam}{voxel}')
 
-        TRAIN_MODELS_PATH = os.path.join(TRAIN_MODELS_PATH_GLOBAL, scene, 'lightning_logs')
-        last_version = sorted([d for d in os.listdir(TRAIN_MODELS_PATH) if 'version_' in d],
-                              key=lambda d: (int(d.replace('version_', ''))))[0]
-        print(last_version)
-        TRAIN_MODELS_PATH = os.path.join(TRAIN_MODELS_PATH, last_version, 'checkpoints')
-        checkpoint = os.listdir(TRAIN_MODELS_PATH)[0]
-        TRAIN_MODELS_PATH = os.path.join(TRAIN_MODELS_PATH, checkpoint)
+        for scene in [f'scene000{i}_00' for i in range(0, 10)]:
+
+            TRAIN_MODELS_PATH = os.path.join(TRAIN_MODELS_PATH_GLOBAL, scene, 'model.ckpt')
 
 
-        experiment_path = os.path.join(experiment_path_global, scene)
+            experiment_path = os.path.join(experiment_path_global, scene)
 
-        Path(experiment_path).mkdir(parents=True, exist_ok=True)
+            Path(experiment_path).mkdir(parents=True, exist_ok=True)
 
-        ####################################
-        # Load Model
-        ###################################
+            ####################################
+            # Load Model
+            ###################################
 
-        model = SemanticsLightningNet(parameters, {'results': 'experiments',
-                                                   'scannet': DATASET_PATH,
-                                                   'scannet_frames_25k': 'scannet_frames_25k'}, experiment_path=experiment_path)
+            model = SemanticsLightningNet(parameters, {'results': 'experiments',
+                                                       'scannet': DATASET_PATH,
+                                                       'scannet_frames_25k': 'scannet_frames_25k'}, experiment_path=experiment_path)
 
-        if parameters['model']['load_checkpoint']:
-            checkpoint = torch.load(TRAIN_MODELS_PATH)
-        checkpoint = checkpoint["state_dict"]
-        # remove any aux classifier stuff
-        removekeys = [
-            key for key in checkpoint.keys()
-            if key.startswith("_model._model.aux_classifier")
-        ]
-        print(removekeys)
-        for key in removekeys:
-            del checkpoint[key]
-        try:
-            model.load_state_dict(checkpoint, strict=True)
-        except RuntimeError as e:
-            print(e)
-        model.load_state_dict(checkpoint, strict=False)
+            if parameters['model']['load_checkpoint']:
+                checkpoint = torch.load(TRAIN_MODELS_PATH)
+            checkpoint = checkpoint["state_dict"]
+            # remove any aux classifier stuff
+            removekeys = [
+                key for key in checkpoint.keys()
+                if key.startswith("_model._model.aux_classifier")
+            ]
+            print(removekeys)
+            for key in removekeys:
+                del checkpoint[key]
+            try:
+                model.load_state_dict(checkpoint, strict=True)
+            except RuntimeError as e:
+                print(e)
+            model.load_state_dict(checkpoint, strict=False)
 
-        ###############################
-        # Prepare datamodule
-        ###############################
+            ###############################
+            # Prepare datamodule
+            ###############################
 
-        datamodule = FineTuneDataModule(parameters,
-                                        dataset_path=DATASET_PATH,
-                                        scene=scene,
-                                        deeplab=deeplab,
-                                        pseudo3d=pseudo3d,
-                                        voxel=voxel,
-                                        method=method,
-                                        imsize_sam=imsize_sam)
+            datamodule = FineTuneDataModule(parameters,
+                                            dataset_path=DATASET_PATH,
+                                            scene=scene,
+                                            deeplab=deeplab,
+                                            pseudo3d=pseudo3d,
+                                            voxel=voxel,
+                                            method=method,
+                                            imsize_sam=imsize_sam)
 
-        trainer = Trainer(**parameters["trainer"],
-                          default_root_dir=experiment_path,
-                          strategy=DDPStrategy(find_unused_parameters=False),
-                          )
-        trainer.validate(model, datamodule=datamodule)
+            trainer = Trainer(**parameters["trainer"],
+                              default_root_dir=experiment_path,
+                              strategy=DDPStrategy(find_unused_parameters=False),
+                              )
+            trainer.validate(model, datamodule=datamodule)
 
 
 
