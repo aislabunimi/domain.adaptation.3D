@@ -187,16 +187,27 @@ Inside this, for each scene, you can find:
 
 Furthermore, we made publicly available all the models fine tuned using our pseudo labels ([download link](https://unimi2013-my.sharepoint.com/:f:/g/personal/michele_antonazzi_unimi_it/EskwDXyxXgRBtANzO_74SyUB0UHZGzUayTMgn0HYCIAAGA?e=MK1svd)).
 
-To test Deeplab follow these steps:
+**NB: before running the scripts below, open them and fix the variables with the paths of the models and datasets according to your filesystem.**
+
+
+To download our dataset of pseudo labels follow these steps:
 
 * Download the exported labels from [here](https://unimi2013-my.sharepoint.com/:f:/g/personal/michele_antonazzi_unimi_it/EltYwy6J44dCpOaDwETSaXoB3TBCcsYfgY9kXENRK2C31A?e=EyUgQW).
 * For each scene, download the RGB and ground truth with the NYU40 labels following [these instructions](#scannet-dataset). Then, copy the folders with the RGB images (named `color`) and the labels (named `gt`) inside the folder of each scene. The colored images must be in the original dimension while the labels must be rescaled in 320x240. **NB: Remember to do it for each scene from 0 to 9, first and second sequence (the second sequence is not available for all scenes). All the RGB images for which the pose is corrupted/not available are discarded from pseudo label generation.**
-* Download the pretrained models from [here](https://unimi2013-my.sharepoint.com/:f:/g/personal/michele_antonazzi_unimi_it/EskwDXyxXgRBtANzO_74SyUB0UHZGzUayTMgn0HYCIAAGA?e=MK1svd).
-* For testing deeplab type the following commands:
-  * Deeplab no fine-tuned (taken from this [repo](https://github.com/ethz-asl/ucsa_neural_rendering)), where train/test is 80/20% fo the same sequence, type `cd Finetune && python3 -m python3 -m evaluate_deeplab.evaluate_deeplab_pretrained_same_sequence`
-  * Deeplab no fine-tuned (taken from this [repo](https://github.com/ethz-asl/ucsa_neural_rendering)), where train/test are different sequences of the same scene, type `cd Finetune && python3 -m python3 -m evaluate_deeplab.evaluate_deeplab_pretrained_diff_sequence`
-  * Deeplab fine-tuned with view consistent pseudo labels (rendered using the voxel map), where train/test are different sequences of the same scene, type `cd Finetune && python3 -m python3 -m evaluate_deeplab.evaluate_deeplab_pretrained_diff_sequence`
+* Download the pretrained models from [here](https://unimi2013-my.sharepoint.com/:f:/g/personal/michele_antonazzi_unimi_it/EskwDXyxXgRBtANzO_74SyUB0UHZGzUayTMgn0HYCIAAGA?e=MK1svd). 
 
+All the scripts to finetune deeplab with the pseudo labels are in the [Finetune/finetune folder](./Finetune/finetune)
+
+ 
+For testing deeplab type the following commands (all files are in the [Finetune/evaluate_deeplab](./Finetune/evaluate_deeplab) folder:
+* Deeplab no fine-tuned (taken from this [repo](https://github.com/ethz-asl/ucsa_neural_rendering)), where train/test is 80/20% fo the same sequence, type `cd Finetune && python3 -m python3 -m evaluate_deeplab.evaluate_deeplab_pretrained_same_sequence`
+* Deeplab no fine-tuned (taken from this [repo](https://github.com/ethz-asl/ucsa_neural_rendering)), where train/test are different sequences of the same scene, type `cd Finetune && python3 -m python3 -m evaluate_deeplab.evaluate_deeplab_pretrained_diff_sequence`
+* Deeplab fine-tuned with view consistent pseudo labels (rendered using the voxel map), where train/test are 80/20% of the same sequence, type `cd Finetune && python3 -m python3 -m evaluate_deeplab.evaluate_deeplab_finetuned_3d_same_sequence`
+* Deeplab fine-tuned with instance refinement pseudo labels (rendered using the voxel map), where train/test are 80/20% of the same sequence, type `cd Finetune && python3 -m python3 -m evaluate_deeplab.evaluate_deeplab_finetuned_sam_same_sequence`
+* Deeplab fine-tuned with view consistent pseudo labels (rendered using the voxel map), where train/test are different sequences of the same scene, type `cd Finetune && python3 -m python3 -m evaluate_deeplab.evaluate_deeplab_finetuned_3d_diff_sequence`
+* Deeplab fine-tuned with instance refinement pseudo labels (rendered using the voxel map), where train/test are different sequences of the same scene, type `cd Finetune && python3 -m python3 -m evaluate_deeplab.evaluate_deeplab_finetuned_sam_diff_sequence`
+ 
+For visualizing the metrics run, open the created files or run the scripts in [Finetune/print_metrics folder](./Finetune/print_metrics).
 ## Troubleshooting
 
 - Ensure `numpy` is not imported from the base Conda env to avoid conflicts.
