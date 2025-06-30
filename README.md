@@ -190,9 +190,9 @@ Furthermore, we made publicly available all the models fine tuned using our pseu
 To test Deeplab follow these steps:
 
 * Download the exported labels from [here](https://unimi2013-my.sharepoint.com/:f:/g/personal/michele_antonazzi_unimi_it/EltYwy6J44dCpOaDwETSaXoB3TBCcsYfgY9kXENRK2C31A?e=EyUgQW).
-  * For each scene, download the RGB and ground truth with the NYU40 labels following [these instructions](#scannet-dataset). Then, copy the folders with the RGB images (named `color`) and the labels (named `gt`) inside the folder of each scene. The colored images must be in the original dimension while the labels must be rescaled in 320x240. **NB: Remember to do it for each scene from 0 to 9, first and second sequence (the second sequence is not available for all scenes). All the RGB images for which the pose is corrupted/not available are discarded from pseudo label generation.**
+* For each scene, download the RGB and ground truth with the NYU40 labels following [these instructions](#scannet-dataset). Then, copy the folders with the RGB images (named `color`) and the labels (named `gt`) inside the folder of each scene. The colored images must be in the original dimension while the labels must be rescaled in 320x240. **NB: Remember to do it for each scene from 0 to 9, first and second sequence (the second sequence is not available for all scenes). All the RGB images for which the pose is corrupted/not available are discarded from pseudo label generation.**
 * Download the pretrained models from [here](https://unimi2013-my.sharepoint.com/:f:/g/personal/michele_antonazzi_unimi_it/EskwDXyxXgRBtANzO_74SyUB0UHZGzUayTMgn0HYCIAAGA?e=MK1svd).
-
+* For testing the pretrained version of deeplab (no fine-tuned, taken from this [repo](https://github.com/ethz-asl/ucsa_neural_rendering)) on all scenes, where train/test is 80/20%, type `cd Finetune && python3 -m python3 -m evaluate_deeplab.evaluate_deeplab_pretrained_same_sequence`
 
 ## Troubleshooting
 
