@@ -57,8 +57,8 @@ TRAIN_MODEL_PATH = '/media/adaptation/New_volume/models_trained/'
 seed_everything(123)
 
 voxels = [5, 3]
-methods = ['C', 'A']
-imsize_sam = ['b', 's']
+method = 'C'
+imsize_sam = 'b'
 pseudo3d = True
 deeplab = False
 
