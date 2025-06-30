@@ -6,8 +6,6 @@ from typing import Optional
 
 from data_loaders.utils.scannet import ScanNet
 from data_loaders.utils.scannet_ngp import ScanNetNGP
-from utils.loading import sanitize_split_file
-from utils.paths import DATASET_PATH, REPO_ROOT
 
 
 class FineTuneDataModule(pl.LightningDataModule):

@@ -54,9 +54,7 @@ parameters = {
     }
 }
 
-RESULTS_PATH = '/home/antonazzi/myfiles/fine_tune_deeplab'
-DATASET_PATH = '/home/antonazzi/myfiles/scannet_signorelli'
-TRAIN_MODELS_PATH = '/home/antonazzi/myfiles/fine_tune_deeplab'
+TRAIN_MODELS_PATH_GLOBAL = '/media/adaptation/New_volume/test_models/test_pretrained'
 seed_everything(123)
 
 voxel = 3
@@ -64,13 +62,6 @@ method = 'C'
 imsize_sam = 'b'
 pseudo3d = False
 deeplab = False
-
-if pseudo3d:
-    TRAIN_MODELS_PATH_GLOBAL = os.path.join(TRAIN_MODELS_PATH, 'fine_tune_3D', f'pseudo{voxel}')
-    experiment_path_global = os.path.join(RESULTS_PATH, 'validation', 'fine_tune_3D', f'pseudo{voxel}')
-else:
-    TRAIN_MODELS_PATH_GLOBAL = os.path.join(TRAIN_MODELS_PATH, 'fine_tune_sam', f'{method}{imsize_sam}{voxel}')
-    experiment_path_global = os.path.join(RESULTS_PATH, 'validation', 'fine_tune_sam', f'{method}{imsize_sam}{voxel}')
 
 for scene in [f'scene000{i}_00' for i in range(0, 10)]:
 

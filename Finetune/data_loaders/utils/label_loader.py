@@ -6,8 +6,6 @@ import torch
 
 __all__ = ["LabelLoaderAuto"]
 
-from utils.paths import DATASET_PATH
-
 
 class LabelLoaderAuto:
 

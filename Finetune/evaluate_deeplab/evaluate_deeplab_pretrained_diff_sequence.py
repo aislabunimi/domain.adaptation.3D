@@ -3,13 +3,11 @@ from pathlib import Path
 import torch
 from pytorch_lightning.strategies import DDPStrategy
 
-from data_loaders.scannet.finetune_data_module import FineTuneDataModule
-from data_loaders.scannet.pretrain_data_module import DataModule25K
+from data_loaders.scannet.finetune_data_module_full_scene import FineTuneDataModuleFullScene
 from pytorch_lightning import seed_everything, Trainer
 
 from models.semantic_segmentator import SemanticsLightningNet
-from utils.loading import load_yaml, get_wandb_logger
-from utils.paths import REPO_ROOT, DATASET_PATH
+
 
 #parameters = load_yaml(os.path.join(REPO_ROOT, 'configs', 'pretrain_25k_test_10_scenes.yml'))
 
@@ -18,7 +16,7 @@ parameters = {
         'pretrained': False,
         'pretrained_backbone': True,
         'load_checkpoint': True,
-        'checkpoint_path': 'pretrain_25k/best-epoch143-step175536.ckpt',
+        'checkpoint_path': '',
         'num_classes': 40
     },
     'trainer': {
@@ -52,9 +50,10 @@ parameters = {
     }
 }
 
-RESULTS_PATH = '/home/antonazzi/myfiles/fine_tune_deeplab'
-DATASET_PATH = '/home/antonazzi/myfiles/scannet_signorelli'
-TRAIN_MODELS_PATH = '/home/antonazzi/myfiles/fine_tune_deeplab'
+RESULTS_PATH = '/media/adaptation/New_volume/test_models'
+DATASET_PATH = '/media/adaptation/New_volume/scannet_adaptation'
+TRAIN_MODEL_PATH = '/media/adaptation/New_volume/models_trained/pretrained/model.ckpt'
+experiment_path_global = os.path.join(RESULTS_PATH, 'test_pretrained')
 seed_everything(123)
 
 voxel = 5
@@ -63,23 +62,7 @@ imsize_sam = 'b'
 pseudo3d = False
 deeplab = False
 
-if pseudo3d:
-    TRAIN_MODELS_PATH_GLOBAL = os.path.join(TRAIN_MODELS_PATH, 'fine_tune_3D', f'pseudo{voxel}')
-    experiment_path_global = os.path.join(RESULTS_PATH, 'validation', 'fine_tune_3D', f'pseudo{voxel}')
-else:
-    TRAIN_MODELS_PATH_GLOBAL = os.path.join(TRAIN_MODELS_PATH, 'fine_tune_sam', f'{method}{imsize_sam}{voxel}')
-    experiment_path_global = os.path.join(RESULTS_PATH, 'validation', 'fine_tune_sam', f'{method}{imsize_sam}{voxel}')
-
-for scene in [f'scene000{i}_00' for i in range(0, 10)]:
-
-    TRAIN_MODELS_PATH = os.path.join(TRAIN_MODELS_PATH_GLOBAL, scene, 'lightning_logs')
-    last_version = sorted([d for d in os.listdir(TRAIN_MODELS_PATH) if 'version_' in d],
-                          key=lambda d: (int(d.replace('version_', ''))))[0]
-    print(last_version)
-    TRAIN_MODELS_PATH = os.path.join(TRAIN_MODELS_PATH, last_version, 'checkpoints')
-    checkpoint = os.listdir(TRAIN_MODELS_PATH)[0]
-    TRAIN_MODELS_PATH = os.path.join(TRAIN_MODELS_PATH, checkpoint)
-
+for scene in [f'scene000{i}_01' for i in [0, 1, 2, 3, 5, 6, 9]]:
 
     experiment_path = os.path.join(experiment_path_global, scene)
 
@@ -94,7 +77,7 @@ for scene in [f'scene000{i}_00' for i in range(0, 10)]:
                                                'scannet_frames_25k': 'scannet_frames_25k'}, experiment_path=experiment_path)
 
     if parameters['model']['load_checkpoint']:
-        checkpoint = torch.load(TRAIN_MODELS_PATH)
+        checkpoint = torch.load(TRAIN_MODEL_PATH)
     checkpoint = checkpoint["state_dict"]
     # remove any aux classifier stuff
     removekeys = [
@@ -114,10 +97,10 @@ for scene in [f'scene000{i}_00' for i in range(0, 10)]:
     # Prepare datamodule
     ###############################
 
-    datamodule = FineTuneDataModule(parameters,
+    datamodule = FineTuneDataModuleFullScene(parameters,
                                     dataset_path=DATASET_PATH,
                                     scene=scene,
-                                    deeplab=deeplab,
+                                    deeplab=False,
                                     pseudo3d=pseudo3d,
                                     voxel=voxel,
                                     method=method,

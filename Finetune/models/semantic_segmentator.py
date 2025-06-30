@@ -4,8 +4,7 @@ import torch
 import torch.nn.functional as F
 
 from models.deeplabv3 import DeepLabV3
-from metrics.metrics import SemanticsMeter
-from utils.paths import RESULTS_PATH
+from metrics import SemanticsMeter
 from utils.visualizer import Visualizer
 
 
@@ -17,7 +16,7 @@ class SemanticsLightningNet(pl.LightningModule):
         self.prev_scene_name = None
 
         self._visualizer = Visualizer(
-            os.path.join(RESULTS_PATH, experiment_path, "visu"),
+            os.path.join(experiment_path, "visu"),
             exp["visualizer"]["store"],
             self,
         )
