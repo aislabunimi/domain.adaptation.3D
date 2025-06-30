@@ -66,7 +66,7 @@ deeplab = False
 for voxel in voxels:
     for method in methods:
         for imsize_sam in imsizes_sam:
-
+            print(f'{method}{imsize_sam}{voxel}')
             for scene in [f'scene000{i}_00' for i in range(0, 10)]:
 
                 TRAIN_MODELS_PATH = os.path.join(TRAIN_MODELS_PATH_GLOBAL, 'test_sam', f'{method}{imsize_sam}{voxel}', scene, 'lightning_logs')
