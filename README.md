@@ -195,7 +195,8 @@ To test Deeplab follow these steps:
 * For testing deeplab type the following commands:
   * Deeplab no fine-tuned (taken from this [repo](https://github.com/ethz-asl/ucsa_neural_rendering)), where train/test is 80/20% fo the same sequence, type `cd Finetune && python3 -m python3 -m evaluate_deeplab.evaluate_deeplab_pretrained_same_sequence`
   * Deeplab no fine-tuned (taken from this [repo](https://github.com/ethz-asl/ucsa_neural_rendering)), where train/test are different sequences of the same scene, type `cd Finetune && python3 -m python3 -m evaluate_deeplab.evaluate_deeplab_pretrained_diff_sequence`
-  * Deeplab fine-tuned with view consistent pseudo labels (rendered using the voxel map), where train/test are different sequences of the same scene, type `cd Finetune && python3 -m python3 -m evaluate_deeplab.evaluate_deeplab_pretrained_diff_sequence`
+  * Deeplab fine-tuned with view consistent pseudo labels (rendered using the voxel map), where train/test are different sequences of the same scene, type `cd Finetune && python3 -m python3 -m evaluate_deeplab.evaluate_deeplab_finetuned_3d_same_sequence`
+    * Deeplab fine-tuned with instance refinement pseudo labels (rendered using the voxel map), where train/test are different sequences of the same scene, type `cd Finetune && python3 -m python3 -m evaluate_deeplab.evaluate_deeplab_finetuned_sam_same_sequence`
 
 ## Troubleshooting
 
