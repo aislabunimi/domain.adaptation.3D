@@ -64,7 +64,7 @@ pseudo3d = True
 deeplab = False
 
 for voxel in voxels:
-
+    print(f'Voxel: {voxel}')
     for scene in [f'scene000{i}_00' for i in range(0, 10)]:
 
         TRAIN_MODELS_PATH = os.path.join(TRAIN_MODELS_PATH_GLOBAL, 'test_pseudo3D', f'pseudo{voxel}', scene, 'lightning_logs')
