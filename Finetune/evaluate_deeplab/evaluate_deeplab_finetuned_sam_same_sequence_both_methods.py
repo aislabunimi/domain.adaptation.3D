@@ -3,7 +3,7 @@ from pathlib import Path
 import torch
 from pytorch_lightning.strategies import DDPStrategy
 
-from data_loaders.scannet.finetune_data_module_full_scene_both_methods import FineTuneDataModuleFullSceneBothMethods
+from data_loaders.scannet.finetune_data_module_both_methods import FineTuneDataModuleBothMethod
 from data_loaders.scannet.pretrain_data_module import DataModule25K
 from pytorch_lightning import seed_everything, Trainer
 
@@ -64,11 +64,12 @@ deeplab = False
 
 for voxel in voxels:
 
+
     for imsize_sam in imsizes_sam:
         TRAIN_MODELS_PATH_GLOBAL = os.path.join(TRAIN_MODEL_PATH, 'fine_tune_sam', f'CA{imsize_sam}{voxel}')
         experiment_path_global = os.path.join(RESULTS_PATH, 'test_sam', f'CA{imsize_sam}{voxel}')
 
-        for scene in [f'scene000{i}_01' for i in [6]]:
+        for scene in [f'scene000{i}_00' for i in range(0, 10)]:
 
             TRAIN_MODELS_PATH = os.path.join(TRAIN_MODELS_PATH_GLOBAL, scene, 'model.ckpt')
 
@@ -106,7 +107,7 @@ for voxel in voxels:
             # Prepare datamodule
             ###############################
 
-            datamodule = FineTuneDataModuleFullSceneBothMethods(parameters,
+            datamodule = FineTuneDataModuleBothMethod(parameters,
                                             dataset_path=DATASET_PATH,
                                             scene=scene,
                                             deeplab=deeplab,
