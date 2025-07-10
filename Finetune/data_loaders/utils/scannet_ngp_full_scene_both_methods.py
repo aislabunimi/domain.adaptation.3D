@@ -86,9 +86,9 @@ class ScanNetNGPFullSceneBothMethods(Dataset):
             self.image_pths += self.image_pths
 
         else:
-            self.label_gt_pths = self.get_label_pth(scene + '_01', label_folder='label_40_scaled')
+            self.label_gt_pths = self.get_label_pth(scene + '_01', label_folder='gt')
             self.image_pths = [
-                p.replace('label_40_scaled', 'color').replace("png", 'jpg')
+                p.replace('gt', 'color').replace("png", 'jpg')
                 for p in self.label_gt_pths
             ]
 
