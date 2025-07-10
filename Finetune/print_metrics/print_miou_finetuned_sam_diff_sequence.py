@@ -67,7 +67,7 @@ for voxel in voxels:
     for method in methods:
         for imsize_sam in imsizes_sam:
             print(f'{method}{imsize_sam}{voxel}')
-            for scene in [f'scene000{i}_00' for i in [0, 1, 2, 3, 5, 6, 9]]:
+            for scene in [f'scene000{i}_01' for i in [0, 1, 2, 3, 5, 6, 9]]:
 
                 TRAIN_MODELS_PATH = os.path.join(TRAIN_MODELS_PATH_GLOBAL, 'test_sam', f'{method}{imsize_sam}{voxel}', scene, 'lightning_logs')
                 last_version = sorted([d for d in os.listdir(TRAIN_MODELS_PATH) if 'version_' in d],
