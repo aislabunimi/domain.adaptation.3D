@@ -8,3 +8,4 @@ catkin_ws/build
 catkin_ws/merged
 catkin_ws/logs
 Finetune/processed_dataset
+__pycache__
