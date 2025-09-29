@@ -2,7 +2,7 @@
 
 import rospy
 import numpy as np
-from Modules import PILBridge
+from helper import PILBridge
 from sensor_msgs.msg import Image
 from label_generator_ros.srv import InitLabelGenerator, InitLabelGeneratorResponse
 from label_generator_ros.srv import GenerateLabel, GenerateLabelResponse

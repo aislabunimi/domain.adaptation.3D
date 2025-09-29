@@ -21,7 +21,7 @@ import tf_conversions
 from kimera_interfacer.msg import SyncSemantic
 from habitat_ros_bridge.msg import Sensors
 
-from Modules import PILBridge
+from helper import PILBridge
 from label_loader import LabelLoaderAuto
 
 import warnings

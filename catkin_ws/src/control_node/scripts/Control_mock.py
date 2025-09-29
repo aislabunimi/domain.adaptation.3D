@@ -2,31 +2,29 @@
 import os
 import rospy
 import cv2
-import numpy as np
+import sys
 import tf_conversions
-from cv_bridge import CvBridge
+import tf2_ros
+import numpy as np
+import imageio.v2 as imageio
+from tqdm import tqdm
+from datetime import datetime
+
 from std_msgs.msg import Bool, Float64, Float32
 from sensor_msgs.msg import Image, CameraInfo
 from geometry_msgs.msg import TransformStamped
-from ros_deeplabv3.srv import FinetuneRequest
 from kimera_interfacer.msg import SyncSemantic
+
 from label_generator_ros.srv import InitLabelGenerator, GenerateLabel, GenerateLabelRequest
-from LabelElaborator import LabelElaborator
-from Modules import PILBridge
-import time
-from metrics import SemanticsMeter
-from collections import Counter
-import tf2_ros
-from tqdm import tqdm
-import imageio.v2 as imageio
-from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from helper.LabelElaborator import LabelElaborator
+from helper import PILBridge
+from helper.resources import NYU40_MAPPING_FILE
+from metrics.SemanticMeter import SemanticsMeter
+import metrics.Miou as Miou
+import metrics.calculateSam as calculateSam
+
 from AutomaticSamRefiner import FastSamRefinerAuto
 from FastSamRefiner import SAM2RefinerFast
-from SamMetrics import SamMetrics
-import matplotlib.pyplot as plt
-import seaborn as sns
-import sys
 
 timer = np.float32(0.0)
 
@@ -45,7 +43,6 @@ class MockedControlNode:
         self.ray_cast_pub = rospy.Publisher('/rayCasted', Image, queue_size=1)
         self.label_nyu40_pub = rospy.Publisher('/label_nyu40', Image, queue_size=1)
         
-
         # Susbs
         rospy.Subscriber("/kimera/integration_duration", Float32, self.timer_callback)
 
@@ -67,65 +64,19 @@ class MockedControlNode:
         self.sam_dir=rospy.get_param("~sam_dir")
         self.automatic = rospy.get_param("~automatic", True)  # Default to False if not set
 
-        mapping = np.genfromtxt(rospy.get_param("~mapping_file"), delimiter=",")[1:, 1:4]
+        mapping = np.genfromtxt(NYU40_MAPPING_FILE, delimiter=",")[1:, 1:4]
         self.class_colors = mapping
         self.label_elaborator = LabelElaborator(self.class_colors, confidence=0)
         self.meter_gt_dlab = SemanticsMeter(number_classes=40)
         self.meter_gt_pseudo = SemanticsMeter(number_classes=40)
         self.meter_gt_sam=SemanticsMeter(number_classes=40)
+
         # Service clients
         rospy.wait_for_service('/label_generator/init')
         rospy.wait_for_service('/label_generator/generate')
         self.init_srv = rospy.ServiceProxy('/label_generator/init', InitLabelGenerator)
         self.generate_srv = rospy.ServiceProxy('/label_generator/generate', GenerateLabel)
 
-    # region Utils
-
-    def save_confusion_matrix_txt(self, conf_matrix, output_path="confusion_matrix.txt"):
-        with open(output_path, 'w') as f:
-            f.write("Confusion Matrix (Refined Class = Rows, Original Class = Columns):\n")
-            for row in conf_matrix:
-                row_str = "\t".join(f"{val:5d}" for val in row)
-                f.write(row_str + "\n")
-
-    def save_confusion_matrix_image(self, conf_matrix, output_path="confusion_matrix.pdf"):
-        # Normalize to percentages
-        total = conf_matrix.sum()
-        if total > 0:
-            conf_percent = (conf_matrix / total) * 100.0
-        else:
-            conf_percent = conf_matrix.copy()
-
-        # Identify rows and columns that are not entirely zero
-        valid_rows = np.any(conf_percent != 0, axis=1)
-        valid_cols = np.any(conf_percent != 0, axis=0)
-
-        # Filter matrix and corresponding labels
-        filtered_matrix = conf_percent[valid_rows][:, valid_cols]
-        row_labels = np.arange(conf_matrix.shape[0])[valid_rows]
-        col_labels = np.arange(conf_matrix.shape[1])[valid_cols]
-
-        # Plot heatmap
-        plt.figure(figsize=(10, 8))
-        sns.heatmap(
-            filtered_matrix,
-            annot=True,
-            fmt=".1f",
-            cmap="viridis",
-            cbar_kws={'label': 'Change %'},
-            square=True,
-            linewidths=.5,
-            xticklabels=col_labels,
-            yticklabels=row_labels
-        )
-
-        plt.title("SAM Refinement Confusion Matrix (Zero-only Rows/Cols Removed)")
-        plt.xlabel("Original Class")
-        plt.ylabel("Refined Class")
-        plt.tight_layout()
-        plt.savefig(output_path)
-        plt.close()
-    
     def timer_callback(self, msg):
         global timer
         timer = np.float32(msg.data)
@@ -250,7 +201,7 @@ class MockedControlNode:
 
         return rgb_image, depth_image, sem_image, colored_sem, gt_image
         
-    def getmaps(self,target_width,target_height):
+    def getmaps(self):
 
         """
         Computes undistort-rectify maps and scaled intrinsics for both RGB and Depth cameras.
@@ -265,9 +216,8 @@ class MockedControlNode:
         K_depth = np.loadtxt(os.path.join(self.int_dir, "intrinsic_depth.txt"))[:3, :3]
 
         # Define original resolutions
-        orig_rgb_size = (1296, 968)
+        orig_rgb_size =(640, 480) # (1296, 968)
         orig_depth_size = (640, 480)
-
 
         # --- Scale intrinsics ---
         def scale_K(K, orig_size, target_size):
@@ -304,174 +254,6 @@ class MockedControlNode:
 
         return map1_rgb, map2_rgb, map1_depth, map2_depth
 
-    # endregion
-    
-    # region metrics
-    def calculate_metrics(self,pred_dir, gt_dir, meter, resize_to=(320, 240), file_ext=".png",perc=0.8):
-        """
-        Calculates mIoU, pixel accuracy, and per-class accuracy between prediction and ground truth labels.
-
-        Args:
-            pred_dir (str): Directory with predicted label images.
-            gt_dir (str): Directory with ground truth label images.
-            meter (object): Metric meter with .reset(), .update(pred, gt), and .measure() -> (miou, acc, class_acc).
-            resize_to (tuple): Target image size (width, height).
-            file_ext (str): Extension of label images (e.g., '.png').
-
-        Returns:
-            tuple: (miou: float, accuracy: float, per_class_accuracy: np.ndarray)
-        """
-        #return 0, 0, 0
-        pred_files = sorted(
-            [f for f in os.listdir(pred_dir) if f.endswith(file_ext)],
-            key=lambda x: int(x.split('.')[0])
-        )
-        missing_classes_counter = Counter()
-        missing_class_counts = []
-        meter.clear()  # Clear previous state
-        num_files = int(len(pred_files) * perc)
-        for f in tqdm(pred_files[:num_files], desc="Evaluating metrics"):
-            pred_path = os.path.join(pred_dir, f)
-            gt_path = os.path.join(gt_dir, f)
-
-            pred_img = cv2.imread(pred_path, cv2.IMREAD_UNCHANGED)
-            gt_img = cv2.imread(gt_path, cv2.IMREAD_UNCHANGED)
-
-            if pred_img is None:
-                print(f"[WARNING] Could not read prediction image: {pred_path}")
-                continue
-            if gt_img is None:
-                print(f"[WARNING] Could not read ground truth image: {gt_path}")
-                continue
-
-            
-
-            # Resize prediction if needed
-            if pred_img.shape[:2] != resize_to[::-1]:
-                #print(f"[INFO] Resizing prediction {f} from {pred_img.shape[::-1]} to {resize_to}")
-                rospy.loginfo_once(f"[INFO] Resizing prediction {f} from {pred_img.shape[::-1]} to {resize_to}")
-                pred_img = cv2.resize(pred_img, resize_to, interpolation=cv2.INTER_NEAREST)
-
-            # Resize ground truth if needed
-            if gt_img.shape[:2] != resize_to[::-1]:
-                #print(f"[INFO] Resizing ground truth {f} from {gt_img.shape[::-1]} to {resize_to}")
-                rospy.loginfo_once(f"[INFO] Resizing ground truth {f} from {gt_img.shape[::-1]} to {resize_to}")
-                gt_img = cv2.resize(gt_img, resize_to, interpolation=cv2.INTER_NEAREST)
-
-            # Convert to int and shift class IDs if needed
-            if len(pred_img.shape) == 3 and pred_img.shape[2] == 3:
-                # Image is color (likely RGB), so convert to class index
-                pred_img = cv2.cvtColor(pred_img, cv2.COLOR_BGR2RGB)
-                pred_img = self.rgb_to_class_index(pred_img)
-            else:
-                # Image is grayscale or single channel, skip or handle differently if needed
-                rospy.logwarn_once("Prediction image is grayscale, skipping rgb_to_class_index conversion.")
-            pred_img = pred_img.astype(np.int16) - 1
-            gt_img = gt_img.astype(np.int16) - 1
-
-            # region Debug
-            gt_classes = set(np.unique(gt_img)) - {-1}
-            pred_classes = set(np.unique(pred_img)) - {-1}
-            missing_classes = gt_classes - pred_classes
-            missing_class_counts.append(len(missing_classes))
-            missing_classes_counter.update(missing_classes)
-
-            # endregion
-
-            if np.all(gt_img == -1) or np.all(pred_img == -1):
-                rospy.logwarn(f"Skipping {f} because prediction or GT is fully void.")
-                continue
-            
-            meter.update(pred_img, gt_img)
-
-        # region Debug
-        print("\n[STATISTICS] Missing Class Analysis:")
-        print(f"- Median number of missing classes per image: {np.median(missing_class_counts):.1f}")
-        total_images = len(missing_class_counts)
-        for cls, count in sorted(missing_classes_counter.items()):
-            pct = 100.0 * count / total_images
-            print(f"  - Class {cls}: missed in {count} images ({pct:.1f}%)")
-        # endregion
-        
-        miou, acc, class_acc = meter.measure()
-        return miou, acc, class_acc    
-        
-    def calculate_sam_metrics(self,pred_dir, pseudo_dir,gt_dir, log_path="sam_metrics_log.json", resize_to=(320, 240), file_ext=".png"):
-        """
-        Calculates refinement statistics using SamMetrics by comparing original and refined label maps.
-
-        Args:
-            pred_dir (str): Directory with refined label images (after SAM).
-            gt_dir (str): Directory with original label images.
-            log_path (str): Path to log file for per-frame metrics.
-            resize_to (tuple): Target image size (width, height).
-            file_ext (str): Image file extension (e.g., '.png').
-            perc (float): Fraction of files to process.
-
-        Returns:
-            tuple: (median_pixel_change: float, global_confusion_matrix: np.ndarray)
-        """
-        
-        pred_files = sorted(
-            [f for f in os.listdir(pred_dir) if f.endswith(file_ext)],
-            key=lambda x: int(os.path.splitext(x)[0])
-        )
-
-        sam_meter = SamMetrics(log_path, True)
-        num_files = int(len(pred_files))
-        
-        for f in tqdm(pred_files[:num_files], desc="Evaluating SAM refinements"):
-            pred_path = os.path.join(pred_dir, f)
-            pseudo_path = os.path.join(pseudo_dir, f)
-            gt_path=os.path.join(gt_dir, f)
-
-            pred_img = cv2.imread(pred_path, cv2.IMREAD_UNCHANGED)
-            pseudo_img = cv2.imread(pseudo_path, cv2.IMREAD_UNCHANGED)
-            gt_img=cv2.imread(gt_path, cv2.IMREAD_UNCHANGED)
-
-            pseudo_img = cv2.cvtColor(pseudo_img, cv2.COLOR_BGR2RGB)
-            pseudo_img = self.rgb_to_class_index(pseudo_img)
-
-            if pred_img is None:
-                print(f"[WARNING] Could not read prediction image: {pred_path}")
-                continue
-            if gt_img is None:
-                print(f"[WARNING] Could not read ground truth image: {pseudo_path}")
-                continue
-            if pseudo_img is None:
-                print(f"[WARNING] Could not read pseudo image: {pseudo_path}")
-                continue
-
-            if pred_img.shape[:2] != resize_to[::-1]:
-                rospy.loginfo_once(f"[INFO] Resizing prediction {f} from {pred_img.shape[::-1]} to {resize_to}")
-                pred_img = cv2.resize(pred_img, resize_to, interpolation=cv2.INTER_NEAREST)
-
-            if gt_img.shape[:2] != resize_to[::-1]:
-                rospy.loginfo_once(f"[INFO] Resizing GT {f} from {gt_img.shape[::-1]} to {resize_to}")
-                gt_img = cv2.resize(gt_img, resize_to, interpolation=cv2.INTER_NEAREST)
-            
-            if pseudo_img.shape[:2] != resize_to[::-1]:
-                rospy.loginfo_once(f"[INFO] Resizing GT {f} from {pseudo_img.shape[::-1]} to {resize_to}")
-                pseudo_img = cv2.resize(pseudo_img, resize_to, interpolation=cv2.INTER_NEAREST)
-
-            pred_img = pred_img.astype(np.int16) - 1
-            gt_img = gt_img.astype(np.int16) - 1
-            pseudo_img=pseudo_img.astype(np.int16) -1
-
-            if np.all(gt_img == -1) or np.all(pred_img == -1):
-                rospy.logwarn(f"Skipping {f} because prediction or GT is fully void.")
-                continue
-
-            sam_meter.update(frame_id=f, info=self.scene_number, original=pseudo_img, gt=gt_img, refined=pred_img)
-
-        median_change, global_conf_matrix = sam_meter.measure()
-        sam_meter.save_log()
-        self.save_confusion_matrix_image(global_conf_matrix, output_path=os.path.join(pred_dir, "sam_confusion_matrix.pdf"))
-        self.save_confusion_matrix_txt(global_conf_matrix, output_path=os.path.join(pred_dir, "sam_confusion_matrix.txt"))
-        return median_change, global_conf_matrix
-    # endregion
-
-    # region generators
     def kimera_mesh_generator(self):
 
         rospy.loginfo("Preloading data for mesh generation...")
@@ -480,7 +262,7 @@ class MockedControlNode:
                    key=lambda x: int(x.split('.')[0]))
        
         camera_info_depth = self.txt_to_camera_info(os.path.join(self.int_dir, "intrinsic_depth.txt"), f"{self.depth_dir}/0.png", *self.image_size)
-        map1_rgb, map2_rgb, map1_depth, map2_depth=self.getmaps(*self.image_size)
+        map1_rgb, map2_rgb, map1_depth, map2_depth =self.getmaps()
 
         rospy.loginfo("Sending RGB-D + Semantics to Kimera...")
         for frame_idx, f in enumerate(tqdm(img_files, desc="Sending frames to Kimera")):
@@ -640,8 +422,6 @@ class MockedControlNode:
 
         rospy.loginfo("All SAM refinements completed.")
 
-    # endregion
-
     def run(self):
         # Step 1: Handle mesh
         if os.path.exists(self.mesh_path):
@@ -650,8 +430,8 @@ class MockedControlNode:
                 if self.auto_yes:
                     answer = "y"
                 else:
-                    answer="y"
-                    #answer = input("Mesh already exists. Regenerate? [y/N]: ").strip().lower()
+                    #answer="n"
+                    answer = input("Mesh already exists. Regenerate? [y/N]: ").strip().lower()
             except EOFError:
                 rospy.logerr("Cannot ask for user input. Running in non-interactive mode. Skipping mesh regeneration.")
                 answer = "n"
@@ -701,7 +481,7 @@ class MockedControlNode:
                 if self.auto_yes:
                     answer = "y"
                 else:
-                    answer="y"
+                    answer="n"
                     #answer = input("SAM refined directory is not empty. Regenerate? [y/N]: ").strip().lower()
             except EOFError:
                 rospy.logerr("Cannot ask for user input. Running in non-interactive mode. Skipping SAM refinement.")
@@ -738,29 +518,30 @@ class MockedControlNode:
         # Step 3: Evaluate metrics after pseudo label generation and SAM refinement
         
         
-        miou_dlab, acc_dlab, class_acc_dlab = self.calculate_metrics(
+        miou_dlab, acc_dlab, class_acc_dlab = Miou.calculate_metrics(
             pred_dir=self.dlab_label_dir,
             gt_dir=self.gt_label_dir,
             meter=self.meter_gt_dlab
         )
 
-        miou_pseudo, acc_pseudo, class_acc_pseudo = self.calculate_metrics(
+        miou_pseudo, acc_pseudo, class_acc_pseudo = Miou.calculate_metrics(
             pred_dir=pseudo_dir,
             gt_dir=self.gt_label_dir,
             meter=self.meter_gt_pseudo
         )
 
-        miou_sam, acc_sam, class_acc_sam = self.calculate_metrics(
+        miou_sam, acc_sam, class_acc_sam = Miou.calculate_metrics(
             pred_dir=sam_refined_dir,
             gt_dir=self.gt_label_dir,
             meter=self.meter_gt_sam , perc=0.8 # Make sure this exists in your class!
         )
         
         # Step 3.5: Evaluate change metrics with SamMetrics
-        sam_avg, sam_conf = self.calculate_sam_metrics(
+        sam_avg, sam_conf = calculateSam.calculate_sam_metrics(
             pred_dir=sam_refined_dir,
             pseudo_dir=self.pseudo_dir,
             gt_dir=self.gt_label_dir,
+            scene_number=self.scene_number,
             resize_to=(320, 240),
             log_path=sam_refined_dir+"/log.txt"
         )

@@ -75,5 +75,5 @@
         "forward_list": "cpp",
         "slist": "cpp"
     },
-    "cmake.sourceDirectory": "D:/PROJECTS/Thesis/domain.adaptation.3D/catkin_ws/src"
+    "cmake.sourceDirectory": "/media/adaptation/New_volume/Domain_Adaptation_Pipeline/domain.adaptation.3D/catkin_ws/build/gflags_catkin/gflags_src-prefix/src/gflags_src"
 }

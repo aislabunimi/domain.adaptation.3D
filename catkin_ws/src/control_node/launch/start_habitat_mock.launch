@@ -1,0 +1,43 @@
+
+<launch>
+    <!-- Main args -->
+    <arg name="scene_number" default="0" />
+    
+    <!--
+    <arg name="data_root" default="/media/adaptation/New_volume/Domain_Adaptation_Pipeline/ColomboHM3D/DataSet/scene00861_$(arg scene_number)"/>
+    -->
+    <arg name="data_root" default="/media/adaptation/New_volume/Domain_Adaptation_Pipeline/ColomboHM3D/ReplicaDataset/room_$(arg scene_number)"/>
+
+
+    <arg name="voxel_size" default="0.03"/>
+    <arg name="kimera_int_out_dir" default="$(arg data_root)/mesh_$(arg voxel_size)" />
+
+    <!-- Include external launch with voxel_size arg -->
+    <include file="$(find kimera_interfacer)/launch/labdata_habitat.launch">
+        <arg name="voxel_size" value="$(arg voxel_size)"/>
+        <arg name="verbose" value="false"/>
+        <arg name="output_folder"  value="$(arg kimera_int_out_dir)" />
+    </include>
+
+    <!-- Other nodes -->
+    <node name="label_generator" pkg="label_generator_ros" type="ray_cast_scene.py" output="screen" />
+
+    <node name="Habitat_control" pkg="control_node" type="Habitat_control.py" output="screen">
+        <param name="img_size_h" value="240" />
+        <param name="img_size_w" value="320" />
+        <param name="feed_w" value="320"/>
+        <param name="feed_h" value="240"/>
+        <param name="automatic" value="False" />
+        <param name="scene_number" value="$(arg scene_number)" />
+        <param name="image_dir" value="$(arg data_root)/RGB" />
+        <param name="pseudo_dir" value="$(arg data_root)/pseudo_labels_$(arg voxel_size)" />
+        <param name="sam_dir" value="$(arg data_root)/sam_labels_$(arg voxel_size)" />
+        <param name="depth_dir" value="$(arg data_root)/DEPTH" />
+        <param name="gt_label_dir" value="$(arg data_root)/GT" />
+        <param name="dlab_label_dir" value="$(arg data_root)/deeplab" />
+        <param name="pose_dir" value="$(arg data_root)/POSE" />
+        <param name="intrinsic_dir" value="$(arg data_root)/INTRINSIC" />
+        <param name="mesh_path" value="$(arg kimera_int_out_dir)/output_predict_mesh.ply" />
+        <param name="serialized_path" value="$(arg kimera_int_out_dir)/output_serialized.data" />
+    </node>
+</launch>

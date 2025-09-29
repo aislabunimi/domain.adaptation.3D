@@ -9,7 +9,7 @@ import torchvision.transforms as T
 from torchvision import models
 
 from PIL import Image as PILImage
-from Modules import PILBridge
+from helper.PILBridge import PILBridge
 from sensor_msgs.msg import Image
 import cv2
 
@@ -50,7 +50,7 @@ class DeepLabSegmenter:
 
     def callback(self, msg):
         try:
-            np_img = PILBridge.PILBridge.rosimg_to_numpy(msg)
+            np_img = PILBridge.rosimg_to_numpy(msg)
 
             img = cv2.resize(np_img, (320,240), interpolation=cv2.INTER_AREA)
             img = img / 255.0
@@ -62,11 +62,8 @@ class DeepLabSegmenter:
                 output = self.model(img)['out'][0]
                 pred = torch.argmax(output, dim=0).byte().cpu().numpy()
                 pred += 1
-            #torch.cuda.empty_cache()
-            # Resize prediction back to original image size
-            #pred_resized = cv2.resize(pred, (original_w, original_h), interpolation=cv2.INTER_NEAREST)
-            
-            ros_seg = PILBridge.PILBridge.numpy_to_rosimg(
+
+            ros_seg = PILBridge.numpy_to_rosimg(
                 pred.astype(np.uint8),
                 encoding="mono8",
                 frame_id=msg.header.frame_id,

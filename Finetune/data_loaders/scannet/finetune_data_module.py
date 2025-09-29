@@ -4,7 +4,6 @@ import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 from typing import Optional
 
-from data_loaders.utils.scannet import ScanNet
 from data_loaders.utils.scannet_ngp import ScanNetNGP
 
 

@@ -54,14 +54,14 @@ class SemanticTsdfServer : public vxb::TsdfServer {
  public:
   SemanticTsdfServer(const ros::NodeHandle& nh,
                      const ros::NodeHandle& nh_private,
-                     bool verbose = false);
+                     bool verbose = true);
 
   SemanticTsdfServer(const ros::NodeHandle& nh,
                      const ros::NodeHandle& nh_private,
                      const vxb::TsdfMap::Config& config,
                      const vxb::TsdfIntegratorBase::Config& integrator_config,
                      const vxb::MeshIntegratorConfig& mesh_config,
-                     bool verbose = false);
+                     bool verbose = true);
 
   void serializeVoxelLayer(const std::string& file_path);
 

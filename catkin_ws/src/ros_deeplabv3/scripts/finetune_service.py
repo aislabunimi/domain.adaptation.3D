@@ -35,7 +35,7 @@ class SegmentationDataset(Dataset):
         mask = mask.resize((self.target_size[1], self.target_size[0]), Image.NEAREST)
 
         mask = np.array(mask, dtype=np.int64)
-        mask[mask >= 41] = 40  # Clamp label indices
+        mask[mask >= 41] = 40
 
         if self.transform:
             image = self.transform(image)
@@ -50,7 +50,11 @@ def train_and_save_model(loader, model_path, num_classes=40, num_epochs=3):
     model = deeplabv3_resnet101(pretrained=False)
     model.classifier[4] = nn.Conv2d(256, num_classes, kernel_size=1)
     model.aux_classifier[4] = nn.Conv2d(256, num_classes, kernel_size=1)
-    model.load_state_dict(torch.load("/path/to/original_model.pth"))  # Update this path
+
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    finetuned_path = os.path.join(base_dir, "..", "models", "deeplabv3.pth")
+    model.load_state_dict(torch.load(finetuned_path))
+
     model = model.to(device)
 
     criterion = nn.CrossEntropyLoss()
@@ -102,11 +106,10 @@ def handle_finetune(req):
 
     loader = DataLoader(dataset, batch_size=4, shuffle=True, num_workers=2, pin_memory=True)
 
-    #REMOVE THIS
-    return FinetuneResponse(success=True, message="Fine-tuning completed successfully.")
-    # WHEN POSSIBLE
     try:
-        train_and_save_model(loader, "/path/to/fine_tuned_model.pth")
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        finetuned_path = os.path.join(base_dir, "..", "models", "new_deeplabv3.pth")
+        train_and_save_model(loader, finetuned_path)
         return FinetuneResponse(success=True, message="Fine-tuning completed successfully.")
     except Exception as e:
         rospy.logerr(f"[Finetune] Error during training: {str(e)}")

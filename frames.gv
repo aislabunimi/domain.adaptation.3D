@@ -1,0 +1,8 @@
+digraph G {
+"base_link" -> "camera_link"[label="Broadcaster: /base_link\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 1757683337.808 sec old)\nBuffer length: 0.000 sec\n"];
+"map" -> "base_link"[label="Broadcaster: /Habitat_control\nAverage rate: 1.226 Hz\nMost recent transform: 1757683337.436 ( 0.372 sec old)\nBuffer length: 4.078 sec\n"];
+edge [style=invis];
+ subgraph cluster_legend { style=bold; color=black; label ="view_frames Result";
+"Recorded at time: 1757683337.808"[ shape=plaintext ] ;
+ }->"map";
+}

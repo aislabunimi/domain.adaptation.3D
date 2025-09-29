@@ -163,7 +163,7 @@ int main(int argc, char **argv)
   tf_buffer_ptr = &tfBuffer;
 
   // TSDF server
-  tsdf_server = kimera::make_unique<kimera::SemanticTsdfServer>(nh, nh_private ,verbose); // ADD VERBOSE IF NECESSARY
+  tsdf_server = kimera::make_unique<kimera::SemanticTsdfServer>(nh, nh_private ,false); // ADD VERBOSE IF NECESSARY
 
   ros::Rate r(50);
   

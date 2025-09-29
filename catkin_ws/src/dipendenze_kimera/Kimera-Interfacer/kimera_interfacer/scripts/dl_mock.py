@@ -17,7 +17,7 @@ import imageio.v2 as imageio
 import tf_conversions
 import tf2_ros
 
-from Modules import PILBridge
+from helper import PILBridge
 from label_loader import LabelLoaderAuto
 
 from sensor_msgs.msg import Image
