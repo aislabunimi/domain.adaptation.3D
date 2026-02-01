@@ -1,8 +1,8 @@
-# 3D Domain Adaptation Pipeline
+# Instance-Guided Unsupervised Domain Adaptation for Robotic Semantic Segmentation
 
 ## Overview
 
-This repository provides a ROS-based pipeline for unsupervised continual domain adaptation in 3D environments using ScanNet data. It includes 3D mesh reconstruction, pseudo-label generation using ray casting, label refinement via Segment Anything Model (SAM), and preparation for DeepLabV3-based semantic segmentation fine-tuning.
+This repository provides the implementatio of the paper *Instance–Guided Unsupervised Domain Adaptation for Robotic Semantic Segmentation*.
 
 - 3D mesh reconstruction using **Kimera**
 - Pseudo-label generation via **ray casting**
@@ -10,7 +10,7 @@ This repository provides a ROS-based pipeline for unsupervised continual domain 
 - Semantic segmentation fine-tuning with **DeepLabV3**
 
 <div style="background-color: white; display: inline-block; padding: 4px;">
-  <img src="diagram.png" alt="Pipeline Diagram" />
+  <img src="method.png" alt="Our method." />
 </div>
 
 # Installation & Setup Guide
