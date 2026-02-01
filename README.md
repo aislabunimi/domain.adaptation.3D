@@ -10,7 +10,7 @@ This repository provides the implementatio of the paper *Instance–Guided Unsup
 - Semantic segmentation fine-tuning with **DeepLabV3**
 
 <div style="background-color: white; display: inline-block; padding: 4px;">
-  <img src="method.png" alt="Our method." />
+  <img src="method_overview.jpg" alt="Our method." />
 </div>
 
 # Installation & Setup Guide
